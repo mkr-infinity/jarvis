@@ -1,0 +1,16 @@
+{
+  "name": "jarvis-desktop-ai-assistant",
+  "version": "1.0.0",
+  "description": "J.A.R.V.I.S - Your Personal Iron-Man Style AI Assistant",
+  "main": "electron/main.js",
+  "author": "Mohammad Kaif Raja",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "backend": "python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8765"
+  },
+  "dependencies": {
+    "electron": "^41.5.0"
+  }
+}

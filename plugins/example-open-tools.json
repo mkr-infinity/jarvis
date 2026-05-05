@@ -1,0 +1,15 @@
+{
+  "id": "example-open-tools",
+  "name": "Example Open Tools",
+  "enabled": false,
+  "description": "Example plugin manifest showing how tools can be added without changing core code.",
+  "actions": [
+    {
+      "action": "open_url",
+      "description": "Open a trusted URL in the default browser.",
+      "params": {
+        "url": "string"
+      }
+    }
+  ]
+}

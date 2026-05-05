@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>J.A.R.V.I.S</title>
+  <link rel="stylesheet" href="styles/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="jarvis-app">
+    <header class="header-bar">
+      <div class="header-brand">
+        <div class="arc-reactor-logo">
+          <svg viewBox="0 0 60 60" class="reactor-svg">
+            <defs>
+              <radialGradient id="coreG" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#00ffff"/>
+                <stop offset="60%" stop-color="#00aaff"/>
+                <stop offset="100%" stop-color="#003344"/>
+              </radialGradient>
+            </defs>
+            <circle cx="30" cy="30" r="28" fill="none" stroke="#00aaff" stroke-width="0.5" stroke-dasharray="4 2" opacity="0.3">
+              <animateTransform attributeName="transform" type="rotate" from="0 30 30" to="360 30 30" dur="20s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="30" cy="30" r="22" fill="none" stroke="#00ccff" stroke-width="1" opacity="0.5">
+              <animateTransform attributeName="transform" type="rotate" from="360 30 30" to="0 30 30" dur="12s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="30" cy="30" r="14" fill="url(#coreG)">
+              <animate attributeName="r" values="14;16;14" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="30" cy="30" r="6" fill="#ffffff" opacity="0.9">
+              <animate attributeName="opacity" values="0.9;0.6;0.9" dur="1s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h1 class="brand-name">J.A.R.V.I.S</h1>
+          <span class="brand-status" id="connectionStatus">SYSTEM ONLINE</span>
+        </div>
+      </div>
+      
+      <div class="header-stats">
+        <div class="stat-box">
+          <span class="stat-label">CORE</span>
+          <span class="stat-value" id="coreStatus">NOMINAL</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">SYSTEM</span>
+          <span class="stat-value" id="systemInfo">READY</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">AI</span>
+          <span class="stat-value" id="aiProvider">LOCAL</span>
+        </div>
+      </div>
+      
+      <div class="header-controls">
+        <button class="icon-btn" id="settingsBtn" title="Settings">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.64l-1.92-3.32c-.12-.22-.34-.29-.59-.17l-2.39.96c-.5-.38-.86-.86-1.34-1.44l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.63.25-1.17.59-1.69.98l-2.39-.96c-.25-.09-.47 0-.59.17l-1.92 3.32c-.12.22-.07.49.12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.64l1.92 3.32c.12.22.34.29.59.17l2.39-.96c.5.38.86.86 1.34 1.44l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.63-.25 1.17-.59 1.69-.98l2.39.96c.25.09.47 0 .59-.17l1.92-3.32c.12-.22.07-.49-.12-.64l-2.03-1.58zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+        </button>
+        <div class="time-display">
+          <span id="currentTime">00:00:00</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <aside class="sidebar-panel">
+        <button class="new-btn" id="newChatBtn">+ NEW</button>
+        
+        <div class="sidebar-section">
+          <div class="section-title">
+            <span>PROJECTS</span>
+            <button class="add-btn" id="newProjectBtn">+</button>
+          </div>
+          <div id="projectList" class="items-list"></div>
+        </div>
+        
+        <div class="sidebar-section flex-grow">
+          <div class="section-title"><span>SESSIONS</span></div>
+          <div id="chatList" class="items-list"></div>
+        </div>
+      </aside>
+
+      <section class="chat-panel">
+        <!-- Chat Mode -->
+        <div class="chat-mode" id="chatMode">
+          <div class="reactor-display">
+            <div class="jarvis-reactor">
+              <svg viewBox="0 0 100 100">
+                <defs>
+                  <radialGradient id="reactorG" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#00ffff"/>
+                    <stop offset="100%" stop-color="#003344"/>
+                  </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="48" fill="none" stroke="#00aaff" stroke-width="0.5" opacity="0.3"/>
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#00aaff" stroke-width="0.5" opacity="0.4">
+                  <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="30s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="50" cy="50" r="28" fill="url(#reactorG)" opacity="0.8">
+                  <animate attributeName="r" values="28;30;28" dur="2s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="50" cy="50" r="12" fill="#ffffff" opacity="0.9">
+                  <animate attributeName="opacity" values="0.9;0.6;0.9" dur="1s" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+              <div class="reactor-label">JARVIS</div>
+            </div>
+            <div class="status-text" id="statusText">Online. Ready.</div>
+          </div>
+          
+          <div id="messages" class="messages-area"></div>
+
+          <div class="input-bar">
+            <button class="mic-btn" id="micBtn">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            </button>
+            <input type="text" id="messageInput" placeholder="Ask JARVIS..." autocomplete="off">
+            <button class="send-btn" id="sendBtn">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="modal-overlay" id="settingsPanel" hidden>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>SETTINGS</h2>
+          <button class="close-btn" id="closeSettingsBtn">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+        
+        <div class="modal-tabs">
+          <button class="tab active" data-tab="ai">AI CORE</button>
+          <button class="tab" data-tab="voice">VOICE</button>
+          <button class="tab" data-tab="about">ABOUT</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="tab-content active" data-page="ai">
+            <div class="field">
+              <label>AI PROVIDER</label>
+              <select id="providerSetting">
+                <option value="ollama">OLLAMA (Local)</option>
+                <option value="openai">OPENAI</option>
+                <option value="anthropic">ANTHROPIC</option>
+                <option value="gemini">GEMINI</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>OPENAI KEY</label>
+              <input type="password" id="openaiKeySetting" placeholder="sk-...">
+            </div>
+            <div class="field">
+              <label>ANTHROPIC KEY</label>
+              <input type="password" id="anthropicKeySetting" placeholder="sk-ant-...">
+            </div>
+            <div class="field">
+              <label>GEMINI KEY</label>
+              <input type="password" id="geminiKeySetting" placeholder="AIza...">
+            </div>
+            <div class="field">
+              <label>VOICE</label>
+              <select id="voiceSetting">
+                <option value="en-US-GuyNeural">English Male</option>
+                <option value="en-US-JennyNeural">English Female</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="tab-content" data-page="voice">
+            <div class="field">
+              <label>VOICE OUTPUT</label>
+              <select id="voiceSetting2">
+                <option value="en-US-GuyNeural">English Male</option>
+                <option value="en-US-JennyNeural">English Female</option>
+              </select>
+            </div>
+            <div class="info">
+              <p>JARVIS speaks responses aloud using browser text-to-speech.</p>
+            </div>
+          </div>
+          
+          <div class="tab-content" data-page="about">
+            <div class="about-logo">
+              <svg viewBox="0 0 60 60" width="60" height="60">
+                <defs>
+                  <radialGradient id="aboutG" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#00ffff"/>
+                    <stop offset="100%" stop-color="#003344"/>
+                  </radialGradient>
+                </defs>
+                <circle cx="30" cy="30" r="28" fill="none" stroke="#00aaff" stroke-width="0.5"/>
+                <circle cx="30" cy="30" r="18" fill="none" stroke="#00ccff" stroke-width="1"/>
+                <circle cx="30" cy="30" r="10" fill="url(#aboutG)"/>
+              </svg>
+            </div>
+            <div class="about-info">
+              <h3>J.A.R.V.I.S</h3>
+              <p>Version 1.0.0</p>
+              <p>AI Desktop Assistant</p>
+            </div>
+            <div class="about-links">
+              <a href="https://github.com/mkr-infinity/jarvis" target="_blank">GitHub</a>
+              <a href="https://mkr-infinity.github.io" target="_blank">Website</a>
+              <a href="https://buymeacoffee.com/mkr_infinity" target="_blank">Support</a>
+            </div>
+            <div class="about-dev">
+              <p>Mohammad Kaif Raja</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="btn btn-solid" id="saveSettingsBtn">SAVE</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="onboardingPanel" hidden>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>ACTIVATING JARVIS</h2>
+        </div>
+        
+        <div class="modal-body">
+          <div class="field">
+            <label>SELECT AI PROVIDER</label>
+            <div class="provider-row">
+              <button class="provider-btn active" data-provider="ollama">OLLAMA</button>
+              <button class="provider-btn" data-provider="openai">OPENAI</button>
+              <button class="provider-btn" data-provider="anthropic">ANTHROPIC</button>
+              <button class="provider-btn" data-provider="gemini">GEMINI</button>
+            </div>
+          </div>
+          <div class="field" id="apiKeyField" hidden>
+            <label>API KEY</label>
+            <input type="password" id="onboardingApiKey" placeholder="Enter your API key">
+            <small>Get key from the provider website</small>
+          </div>
+          <div class="error" id="onboardingError"></div>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="btn btn-outline" id="skipOnboardingBtn">SKIP</button>
+          <button class="btn btn-solid" id="finishOnboardingBtn">ACTIVATE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts/app.js"></script>
+</body>
+</html>

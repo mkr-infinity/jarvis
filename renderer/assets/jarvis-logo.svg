@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Jarvis logo">
+  <rect width="256" height="256" fill="#0d1117"/>
+  <circle cx="128" cy="128" r="91" fill="none" stroke="#58a6ff" stroke-width="6"/>
+  <circle cx="128" cy="128" r="66" fill="none" stroke="#58a6ff" stroke-width="3" stroke-dasharray="18 12"/>
+  <circle cx="128" cy="128" r="36" fill="none" stroke="#58a6ff" stroke-width="4"/>
+  <circle cx="128" cy="128" r="18" fill="#58a6ff"/>
+  <path d="M128 18v34M128 204v34M18 128h34M204 128h34" stroke="#58a6ff" stroke-width="5" stroke-linecap="square"/>
+</svg>
