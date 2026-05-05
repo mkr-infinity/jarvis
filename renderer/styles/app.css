@@ -579,6 +579,39 @@ button:active { transform: scale(0.97); }
 
 .error { color: var(--red); font-size: 12px; min-height: 18px; text-shadow: 0 0 4px var(--red); }
 
+.model-status {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  background: rgba(0, 255, 255, 0.05);
+  border-left: 3px solid var(--cyan);
+  color: var(--text-dim);
+}
+.model-status.checking {
+  background: rgba(0, 255, 255, 0.05);
+  border-left-color: var(--cyan);
+  color: var(--cyan);
+  animation: pulse 1.5s infinite;
+}
+.model-status.success {
+  background: rgba(0, 255, 136, 0.08);
+  border-left-color: var(--green);
+  color: var(--green);
+}
+.model-status.error {
+  background: rgba(255, 51, 102, 0.08);
+  border-left-color: var(--red);
+  color: var(--red);
+}
+.model-status .model-name {
+  display: block;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--text);
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;

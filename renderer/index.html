@@ -186,6 +186,7 @@
                 <option value="openai">OPENAI</option>
                 <option value="anthropic">ANTHROPIC</option>
                 <option value="gemini">GEMINI</option>
+                <option value="groq">GROQ</option>
               </select>
             </div>
             <div class="field">
@@ -199,6 +200,14 @@
             <div class="field">
               <label>GEMINI KEY</label>
               <input type="password" id="geminiKeySetting" placeholder="AIza...">
+            </div>
+            <div class="field">
+              <label>GROQ KEY</label>
+              <input type="password" id="groqKeySetting" placeholder="gsk_...">
+            </div>
+            <div class="field" id="modelStatusField" hidden>
+              <label>MODEL DETECTION</label>
+              <div id="modelStatus" class="model-status">Checking...</div>
             </div>
             <div class="field">
               <label>VOICE</label>
@@ -272,6 +281,7 @@
               <button class="provider-btn" data-provider="openai">OPENAI</button>
               <button class="provider-btn" data-provider="anthropic">ANTHROPIC</button>
               <button class="provider-btn" data-provider="gemini">GEMINI</button>
+              <button class="provider-btn" data-provider="groq">GROQ</button>
             </div>
           </div>
           <div class="field" id="apiKeyField" hidden>

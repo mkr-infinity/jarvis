@@ -26,15 +26,16 @@
   function $(id) { return document.getElementById(id); }
 
   function cacheElements() {
-    var ids = [
-      'connectionStatus','projectList','chatList','messages','messageInput',
-      'micBtn','sendBtn','newChatBtn','newProjectBtn','settingsBtn',
-      'onboardingPanel','settingsPanel','skipOnboardingBtn','finishOnboardingBtn',
-      'onboardingApiKey','apiKeyField','onboardingError','providerSetting',
-      'openaiKeySetting','anthropicKeySetting','geminiKeySetting','voiceSetting',
-      'closeSettingsBtn','saveSettingsBtn','coreStatus','systemInfo','currentTime',
-      'aiProvider','toast','statusText','chatMode','voiceMode','voiceStatus','voiceCutBtn'
-    ];
+  var ids = [
+    'connectionStatus','projectList','chatList','messages','messageInput',
+    'micBtn','sendBtn','newChatBtn','newProjectBtn','settingsBtn',
+    'onboardingPanel','settingsPanel','skipOnboardingBtn','finishOnboardingBtn',
+    'onboardingApiKey','apiKeyField','onboardingError','providerSetting',
+    'openaiKeySetting','anthropicKeySetting','geminiKeySetting','groqKeySetting',
+    'voiceSetting','closeSettingsBtn','saveSettingsBtn','coreStatus','systemInfo',
+    'currentTime','aiProvider','toast','statusText','chatMode','voiceMode',
+    'voiceStatus','voiceCutBtn','modelStatus','modelStatusField'
+  ];
     ids.forEach(function(id) { els[id] = $(id); });
   }
 
@@ -299,6 +300,9 @@
         state.messages = payload.messages || state.messages;
         renderAll();
         break;
+      case 'models_detected':
+        handleModelsDetected(payload);
+        break;
       case 'error': showError(payload.message || 'Error'); break;
     }
   }
@@ -325,13 +329,16 @@
     var p = state.settings.provider || 'ollama';
     if (els.providerSetting) els.providerSetting.value = p;
     if (els.aiProvider) {
-      els.aiProvider.textContent = p === 'ollama' ? 'LOCAL' : p.toUpperCase();
+      var model = state.settings.model || '';
+      var label = p === 'ollama' ? 'LOCAL' : p.toUpperCase();
+      els.aiProvider.textContent = model ? label + ' (' + model.split('-').slice(-2).join('-') + ')' : label;
     }
     if (els.voiceSetting) els.voiceSetting.value = state.settings.voice || 'en-US-GuyNeural';
 
     if (els.openaiKeySetting) els.openaiKeySetting.value = state.settings.openai_key || '';
     if (els.anthropicKeySetting) els.anthropicKeySetting.value = state.settings.anthropic_key || '';
     if (els.geminiKeySetting) els.geminiKeySetting.value = state.settings.gemini_key || '';
+    if (els.groqKeySetting) els.groqKeySetting.value = state.settings.groq_key || '';
   }
 
   function renderAll() { renderProjects(); renderChats(); renderMessages(); }
@@ -443,21 +450,35 @@
       if (els.onboardingError) els.onboardingError.textContent = 'API key required';
       return;
     }
-    var patch = {
-      provider: provider,
-      model: provider === 'openai' ? 'gpt-4o-mini' :
-             provider === 'anthropic' ? 'claude-3-haiku-20240307' :
-             provider === 'gemini' ? 'gemini-1.5-flash' : 'llama3.1',
+    if (els.onboardingError) els.onboardingError.textContent = '';
+
+    if (provider === 'ollama') {
+      finishOnboarding({ provider: 'ollama', model: 'llama3.1' });
+      return;
+    }
+
+    if (!key) {
+      finishOnboarding({ provider: provider, model: getDefaultModel(provider) });
+      return;
+    }
+
+    els.onboardingError.textContent = 'Checking API key...';
+    send('detect_models', { provider: provider, api_key: key });
+
+    state.pendingOnboarding = { provider: provider };
+    var keyField = { openai: 'openai_key', anthropic: 'anthropic_key', gemini: 'gemini_key', groq: 'groq_key' };
+    state.pendingOnboarding[keyField[provider]] = key;
+  }
+
+  function finishOnboarding(patch) {
+    var finalPatch = Object.assign({
       language: 'auto',
       voice: 'en-US-GuyNeural',
       onboarding_completed: 'true'
-    };
-    if (provider === 'openai') patch.openai_key = key;
-    else if (provider === 'anthropic') patch.anthropic_key = key;
-    else if (provider === 'gemini') patch.gemini_key = key;
-    send('settings_update', patch);
+    }, patch);
+    send('settings_update', finalPatch);
     els.onboardingPanel.hidden = true;
-    showSuccess('JARVIS activated');
+    showSuccess('JARVIS activated with ' + finalPatch.provider.toUpperCase());
     applySettings();
   }
 
@@ -466,34 +487,109 @@
     var ok = els.openaiKeySetting ? els.openaiKeySetting.value.trim() : '';
     var ak = els.anthropicKeySetting ? els.anthropicKeySetting.value.trim() : '';
     var gk = els.geminiKeySetting ? els.geminiKeySetting.value.trim() : '';
+    var rk = els.groqKeySetting ? els.groqKeySetting.value.trim() : '';
     var voice = els.voiceSetting ? els.voiceSetting.value : 'en-US-GuyNeural';
-
-    var model = 'llama3.1';
-    if (p === 'openai') model = 'gpt-4o-mini';
-    else if (p === 'anthropic') model = 'claude-3-haiku-20240307';
-    else if (p === 'gemini') model = 'gemini-1.5-flash';
 
     var patch = {
       provider: p,
-      model: model,
       language: 'auto',
       voice: voice,
       openai_key: ok,
       anthropic_key: ak,
       gemini_key: gk,
+      groq_key: rk,
       onboarding_completed: 'true'
     };
 
-    console.log('Saving settings:', patch);
+    if (p === 'ollama') {
+      patch.model = 'llama3.1';
+      commitSettings(patch);
+      return;
+    }
 
+    var keyMap = { openai: ok, anthropic: ak, gemini: gk, groq: rk };
+    var apiKey = keyMap[p] || '';
+
+    if (!apiKey) {
+      patch.model = getDefaultModel(p);
+      commitSettings(patch);
+      return;
+    }
+
+    showModelStatus('checking', 'Checking API key and detecting models...');
+
+    var detectPayload = { provider: p, api_key: apiKey };
+    send('detect_models', detectPayload);
+
+    state.pendingSettings = patch;
+  }
+
+  function getDefaultModel(provider) {
+    var defaults = {
+      openai: 'gpt-4o-mini',
+      anthropic: 'claude-3-haiku-20240307',
+      gemini: 'gemini-1.5-flash',
+      groq: 'llama-3.1-8b-instant',
+      ollama: 'llama3.1'
+    };
+    return defaults[provider] || 'gpt-4o-mini';
+  }
+
+  function showModelStatus(type, msg) {
+    if (!els.modelStatusField) return;
+    els.modelStatusField.hidden = false;
+    if (!els.modelStatus) return;
+    els.modelStatus.className = 'model-status ' + type;
+    els.modelStatus.textContent = msg;
+  }
+
+  function commitSettings(patch) {
+    console.log('Committing settings:', patch);
     state.settings = patch;
     saveSettingsToStorage();
-
     send('settings_update', patch);
-
     els.settingsPanel.hidden = true;
-    showToast('Settings saved: ' + p.toUpperCase());
+    if (els.modelStatusField) els.modelStatusField.hidden = true;
+    showToast('Settings saved: ' + patch.provider.toUpperCase());
     applySettings();
+  }
+
+  function handleModelsDetected(payload) {
+    if (state.pendingOnboarding) {
+      if (payload.ok) {
+        var models = payload.models || [];
+        if (models.length > 0) {
+          state.pendingOnboarding.model = models[0];
+          els.onboardingError.textContent = 'Found ' + models.length + ' models. Activating...';
+          setTimeout(function() { finishOnboarding(state.pendingOnboarding); }, 600);
+        } else {
+          els.onboardingError.textContent = 'No models available for this key. Try a different API key.';
+        }
+      } else {
+        els.onboardingError.textContent = payload.error || 'Key validation failed.';
+      }
+      state.pendingOnboarding = null;
+      return;
+    }
+
+    if (payload.ok) {
+      var models = payload.models || [];
+      if (models.length > 0) {
+        var firstModel = models[0];
+        state.settings.model = firstModel;
+        state.pendingSettings.model = firstModel;
+
+        var msg = 'Found ' + models.length + ' models. Using: ' + firstModel;
+        showModelStatus('success', msg);
+
+        setTimeout(function() { commitSettings(state.pendingSettings); }, 800);
+      } else {
+        showModelStatus('error', 'No models found for this key. The key may not have access to any models.');
+      }
+    } else {
+      var error = payload.error || 'Unknown error';
+      showModelStatus('error', error);
+    }
   }
 
   function initSpeech() {

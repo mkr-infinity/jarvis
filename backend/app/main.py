@@ -145,6 +145,13 @@ async def handle_event(websocket: WebSocket, event: dict) -> None:
         await websocket.send_json({"type": "tts_result", "payload": result})
         return
 
+    if event_type == "detect_models":
+        provider = payload.get("provider", "ollama")
+        api_key = payload.get("api_key", "")
+        result = ai.detect_models(provider, api_key)
+        await websocket.send_json({"type": "models_detected", "payload": result})
+        return
+
     if event_type == "user_message":
         await process_user_message(websocket, payload)
 

@@ -64,6 +64,111 @@ class AIEngine:
         except (OSError, urllib.error.URLError) as error:
             yield f"Local AI error: {error}"
 
+    def detect_models(self, provider: str, api_key: str) -> dict:
+        try:
+            if provider == "openai":
+                return self._detect_openai_models(api_key)
+            elif provider == "anthropic":
+                return self._detect_anthropic_models(api_key)
+            elif provider == "gemini":
+                return self._detect_gemini_models(api_key)
+            elif provider == "groq":
+                return self._detect_groq_models(api_key)
+            elif provider == "ollama":
+                return {"ok": True, "models": self.list_ollama_models(), "error": ""}
+            else:
+                return {
+                    "ok": False,
+                    "models": [],
+                    "error": f"Unknown provider: {provider}",
+                }
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8")
+            except Exception:
+                pass
+            error = self._parse_api_error(provider, e.code, body)
+            return {"ok": False, "models": [], "error": error}
+        except Exception as e:
+            return {"ok": False, "models": [], "error": str(e)}
+
+    def _parse_api_error(self, provider: str, code: int, body: str) -> str:
+        if code == 401 or code == 403:
+            reasons = {
+                "openai": "API key is invalid or expired. Get a new key from platform.openai.com",
+                "anthropic": "API key is invalid or expired. Get a new key from console.anthropic.com",
+                "gemini": "API key is invalid or expired. Get a new key from aistudio.google.com",
+                "groq": "API key is invalid or expired. Get a new key from console.groq.com",
+            }
+            return reasons.get(provider, "API key is invalid or expired")
+        if code == 429:
+            return "Too many requests. Your key has hit rate limits. Wait a moment and try again"
+        if code == 404:
+            return "API endpoint not found. The key may be for a different service or version"
+        if code >= 500:
+            return f"{provider.upper()} server error ({code}). Their service may be down temporarily"
+        return f"{provider.upper()} returned error {code}: {body[:200]}"
+
+    def _detect_openai_models(self, api_key: str) -> dict:
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        all_models = [m["id"] for m in data.get("data", [])]
+        preferred = [
+            m
+            for m in all_models
+            if any(x in m for x in ["gpt-4o", "gpt-4", "gpt-3.5", "o1", "o3"])
+        ]
+        return {
+            "ok": True,
+            "models": preferred[:20] if preferred else all_models[:20],
+            "error": "",
+        }
+
+    def _detect_anthropic_models(self, api_key: str) -> dict:
+        request = urllib.request.Request(
+            "https://api.anthropic.com/v1/models",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "anthropic-beta": "models-list-2025-05-14",
+            },
+            method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        all_models = [m["id"] for m in data.get("data", [])]
+        return {"ok": True, "models": all_models[:20], "error": ""}
+
+    def _detect_gemini_models(self, api_key: str) -> dict:
+        with urllib.request.urlopen(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
+            timeout=15,
+        ) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        all_models = []
+        for m in data.get("models", []):
+            name = m.get("name", "").replace("models/", "")
+            if name and "generateContent" in m.get("supportedGenerationMethods", []):
+                all_models.append(name)
+        return {"ok": True, "models": all_models[:20], "error": ""}
+
+    def _detect_groq_models(self, api_key: str) -> dict:
+        request = urllib.request.Request(
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        all_models = [m["id"] for m in data.get("data", [])]
+        return {"ok": True, "models": all_models[:20], "error": ""}
+
     async def _single_response_provider(
         self, provider: str, messages: list[dict[str, str]], settings: dict[str, str]
     ) -> AsyncGenerator[str, None]:
@@ -166,18 +271,54 @@ class AIEngine:
     def _gemini_api(self, api_key: str, model: str, messages: list) -> str:
         contents = []
         system_text = ""
+        last_role = None
+
         for m in messages:
             if m["role"] == "system":
                 system_text += m["content"] + "\n"
                 continue
+
             role = "model" if m["role"] == "assistant" else "user"
+
+            if role == last_role:
+                contents[-1]["parts"][0]["text"] += "\n" + m["content"]
+                continue
+
             contents.append({"role": role, "parts": [{"text": m["content"]}]})
+            last_role = role
+
+        if not contents:
+            contents.append({"role": "user", "parts": [{"text": "Hello"}]})
+
         payload = {"contents": contents}
         if system_text.strip():
             payload["systemInstruction"] = {"parts": [{"text": system_text.strip()}]}
-        data = self._request_json(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
-            payload,
-            {},
+
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent?key={api_key}"
         )
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8") if e.fp else ""
+            raise Exception(f"Gemini API {e.code}: {body}")
+
+        candidates = data.get("candidates", [])
+        if not candidates:
+            raise Exception("Gemini returned no candidates")
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        if not parts:
+            raise Exception("Gemini returned empty response")
+
+        return parts[0].get("text", "")
