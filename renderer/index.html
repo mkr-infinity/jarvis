@@ -49,9 +49,14 @@
           <span class="stat-label">SYSTEM</span>
           <span class="stat-value" id="systemInfo">READY</span>
         </div>
-        <div class="stat-box">
+        <div class="stat-box stat-ai">
           <span class="stat-label">AI</span>
-          <span class="stat-value" id="aiProvider">LOCAL</span>
+          <div class="stat-ai-content">
+            <span class="stat-value" id="aiProvider">LOCAL</span>
+            <select class="quick-model-select" id="quickModelSelect" title="Switch model">
+              <option value="">Loading...</option>
+            </select>
+          </div>
         </div>
       </div>
       
@@ -223,6 +228,35 @@
                 <option value="en-US-GuyNeural">English Male</option>
                 <option value="en-US-JennyNeural">English Female</option>
               </select>
+            </div>
+            <div class="field">
+              <label>THEME</label>
+              <div class="theme-grid" id="themeGrid">
+                <button class="theme-btn active" data-theme="jarvis">
+                  <div class="theme-preview theme-jarvis"></div>
+                  <span>JARVIS</span>
+                </button>
+                <button class="theme-btn" data-theme="matrix">
+                  <div class="theme-preview theme-matrix"></div>
+                  <span>Matrix</span>
+                </button>
+                <button class="theme-btn" data-theme="sunset">
+                  <div class="theme-preview theme-sunset"></div>
+                  <span>Sunset</span>
+                </button>
+                <button class="theme-btn" data-theme="violet">
+                  <div class="theme-preview theme-violet"></div>
+                  <span>Violet</span>
+                </button>
+                <button class="theme-btn" data-theme="arctic">
+                  <div class="theme-preview theme-arctic"></div>
+                  <span>Arctic</span>
+                </button>
+                <button class="theme-btn" data-theme="gold">
+                  <div class="theme-preview theme-gold"></div>
+                  <span>Gold</span>
+                </button>
+              </div>
             </div>
           </div>
           

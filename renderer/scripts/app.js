@@ -31,6 +31,7 @@
       console.log('JARVIS: Starting...');
       cacheElements();
       loadSettings();
+      loadTheme();
       bindEvents();
       initSpeech();
       connect();
@@ -42,18 +43,18 @@
   function $(id) { return document.getElementById(id); }
 
   function cacheElements() {
-    var ids = [
-      'connectionStatus','projectList','chatList','messages','messageInput',
-      'micBtn','sendBtn','newChatBtn','newProjectBtn','settingsBtn',
-      'onboardingPanel','settingsPanel','skipOnboardingBtn','finishOnboardingBtn',
-      'onboardingApiKey','apiKeyField','onboardingError','providerSetting',
-      'modelSetting','refreshModelsBtn',
-      'openaiKeySetting','anthropicKeySetting','geminiKeySetting','groqKeySetting',
-      'openaiKeyGroup','anthropicKeyGroup','geminiKeyGroup','groqKeyGroup',
-      'voiceSetting','closeSettingsBtn','saveSettingsBtn','coreStatus','systemInfo',
-      'currentTime','aiProvider','toast','statusText','chatMode','voiceMode',
-      'voiceStatus','voiceCutBtn','modelStatus'
-    ];
+  var ids = [
+    'connectionStatus','projectList','chatList','messages','messageInput',
+    'micBtn','sendBtn','newChatBtn','newProjectBtn','settingsBtn',
+    'onboardingPanel','settingsPanel','skipOnboardingBtn','finishOnboardingBtn',
+    'onboardingApiKey','apiKeyField','onboardingError','providerSetting',
+    'modelSetting','refreshModelsBtn','quickModelSelect',
+    'openaiKeySetting','anthropicKeySetting','geminiKeySetting','groqKeySetting',
+    'openaiKeyGroup','anthropicKeyGroup','geminiKeyGroup','groqKeyGroup',
+    'voiceSetting','closeSettingsBtn','saveSettingsBtn','coreStatus','systemInfo',
+    'currentTime','aiProvider','toast','statusText','chatMode','voiceMode',
+    'voiceStatus','voiceCutBtn','modelStatus','themeGrid'
+  ];
     ids.forEach(function(id) { els[id] = $(id); });
   }
 
@@ -111,9 +112,15 @@
     }
     if (els.modelSetting) {
       els.modelSetting.onchange = function() {
-        state.settings.model = this.value;
-        saveSettingsToStorage();
-        updateHeaderModel();
+        changeModel(this.value);
+      };
+    }
+    if (els.quickModelSelect) {
+      els.quickModelSelect.onchange = function() {
+        changeModel(this.value);
+      };
+      els.quickModelSelect.onclick = function(e) {
+        e.stopPropagation();
       };
     }
     if (els.refreshModelsBtn) {
@@ -121,6 +128,12 @@
         autoDetectModels(els.providerSetting.value);
       };
     }
+
+    document.querySelectorAll('.theme-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        applyTheme(this.dataset.theme);
+      };
+    });
 
     var keyInputs = [els.openaiKeySetting, els.anthropicKeySetting, els.geminiKeySetting, els.groqKeySetting];
     keyInputs.forEach(function(input) {
@@ -198,6 +211,36 @@
     }
   }
 
+  function changeModel(model) {
+    if (!model) return;
+    state.settings.model = model;
+    saveSettingsToStorage();
+    updateHeaderModel();
+    if (els.modelSetting && els.modelSetting.value !== model) {
+      els.modelSetting.value = model;
+    }
+    if (els.quickModelSelect && els.quickModelSelect.value !== model) {
+      els.quickModelSelect.value = model;
+    }
+    send('settings_update', { model: model });
+    showToast('Model: ' + model);
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    state.settings.theme = theme;
+    saveSettingsToStorage();
+
+    document.querySelectorAll('.theme-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+  }
+
+  function loadTheme() {
+    var theme = state.settings.theme || 'jarvis';
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+
   function updateHeaderModel() {
     if (!els.aiProvider) return;
     var p = state.settings.provider || 'ollama';
@@ -208,6 +251,25 @@
       els.aiProvider.textContent = label + ' (' + short + ')';
     } else {
       els.aiProvider.textContent = label;
+    }
+
+    if (els.quickModelSelect) {
+      var models = state.detectedModels[p];
+      els.quickModelSelect.innerHTML = '';
+      if (models && models.length > 0) {
+        models.forEach(function(m) {
+          var opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = m;
+          if (m === model) opt.selected = true;
+          els.quickModelSelect.appendChild(opt);
+        });
+      } else {
+        var opt = document.createElement('option');
+        opt.value = model || DEFAULT_MODELS[p] || '';
+        opt.textContent = model || DEFAULT_MODELS[p] || 'No model';
+        els.quickModelSelect.appendChild(opt);
+      }
     }
   }
 
@@ -492,6 +554,11 @@
     if (els.anthropicKeySetting) els.anthropicKeySetting.value = state.settings.anthropic_key || '';
     if (els.geminiKeySetting) els.geminiKeySetting.value = state.settings.gemini_key || '';
     if (els.groqKeySetting) els.groqKeySetting.value = state.settings.groq_key || '';
+
+    loadTheme();
+    document.querySelectorAll('.theme-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.theme === (state.settings.theme || 'jarvis'));
+    });
 
     var models = state.detectedModels[p];
     if (models && models.length > 0) {
