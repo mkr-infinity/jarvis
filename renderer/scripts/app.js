@@ -26,7 +26,15 @@
   function $(id) { return document.getElementById(id); }
 
   function cacheElements() {
-    var ids = ['connectionStatus','projectList','chatList','messages','messageInput','micBtn','sendBtn','newChatBtn','newProjectBtn','settingsBtn','onboardingPanel','settingsPanel','skipOnboardingBtn','finishOnboardingBtn','onboardingApiKey','apiKeyField','onboardingError','providerSetting','openaiKeySetting','anthropicKeySetting','geminiKeySetting','voiceSetting','closeSettingsBtn','saveSettingsBtn','coreStatus','systemInfo','currentTime','aiProvider','toast','statusText','voiceMode','chatMode','voiceCutBtn','voiceStatus'];
+    var ids = [
+      'connectionStatus','projectList','chatList','messages','messageInput',
+      'micBtn','sendBtn','newChatBtn','newProjectBtn','settingsBtn',
+      'onboardingPanel','settingsPanel','skipOnboardingBtn','finishOnboardingBtn',
+      'onboardingApiKey','apiKeyField','onboardingError','providerSetting',
+      'openaiKeySetting','anthropicKeySetting','geminiKeySetting','voiceSetting',
+      'closeSettingsBtn','saveSettingsBtn','coreStatus','systemInfo','currentTime',
+      'aiProvider','toast','statusText','chatMode','voiceMode','voiceStatus','voiceCutBtn'
+    ];
     ids.forEach(function(id) { els[id] = $(id); });
   }
 
@@ -53,16 +61,28 @@
         if (e.key === 'Enter') sendMessage();
       });
     }
-    if (els.newChatBtn) els.newChatBtn.onclick = function() { send('create_chat', { projectId: state.currentProjectId, title: 'New Session' }); };
+    if (els.newChatBtn) els.newChatBtn.onclick = function() {
+      send('create_chat', { projectId: state.currentProjectId, title: 'New Session' });
+    };
     if (els.newProjectBtn) els.newProjectBtn.onclick = function() {
       var name = prompt('Project name:');
       if (name && name.trim()) send('create_project', { name: name.trim() });
     };
-    if (els.settingsBtn) els.settingsBtn.onclick = function() { els.settingsPanel.hidden = false; };
-    if (els.closeSettingsBtn) els.closeSettingsBtn.onclick = function() { els.settingsPanel.hidden = true; };
-    if (els.saveSettingsBtn) els.saveSettingsBtn.onclick = function() { saveSettings(); };
-    if (els.skipOnboardingBtn) els.skipOnboardingBtn.onclick = function() { completeOnboarding(true); };
-    if (els.finishOnboardingBtn) els.finishOnboardingBtn.onclick = function() { completeOnboarding(false); };
+    if (els.settingsBtn) els.settingsBtn.onclick = function() {
+      els.settingsPanel.hidden = false;
+    };
+    if (els.closeSettingsBtn) els.closeSettingsBtn.onclick = function() {
+      els.settingsPanel.hidden = true;
+    };
+    if (els.saveSettingsBtn) els.saveSettingsBtn.onclick = function() {
+      saveSettings();
+    };
+    if (els.skipOnboardingBtn) els.skipOnboardingBtn.onclick = function() {
+      completeOnboarding(true);
+    };
+    if (els.finishOnboardingBtn) els.finishOnboardingBtn.onclick = function() {
+      completeOnboarding(false);
+    };
 
     document.querySelectorAll('[data-provider]').forEach(function(btn) {
       btn.onclick = function() { selectProvider(this.dataset.provider); };
@@ -71,12 +91,19 @@
     document.querySelectorAll('.modal-tabs .tab').forEach(function(tab) {
       tab.onclick = function() {
         var name = this.dataset.tab;
-        document.querySelectorAll('.modal-tabs .tab').forEach(function(t) { t.classList.toggle('active', t === this); }.bind(this));
-        document.querySelectorAll('.tab-content').forEach(function(p) { p.classList.toggle('active', p.dataset.page === name); }.bind(this));
+        document.querySelectorAll('.modal-tabs .tab').forEach(function(t) {
+          t.classList.toggle('active', t === this);
+        }.bind(this));
+        document.querySelectorAll('.tab-content').forEach(function(p) {
+          p.classList.toggle('active', p.dataset.page === name);
+        }.bind(this));
       };
     });
 
-    if (els.micBtn) els.micBtn.onclick = function() { startVoiceMode(); };
+    if (els.micBtn) els.micBtn.onclick = function() {
+      if (state.voiceMode) stopVoiceMode();
+      else startVoiceMode();
+    };
     if (els.voiceCutBtn) els.voiceCutBtn.onclick = function() { stopVoiceMode(); };
 
     document.onkeydown = function(e) {
@@ -95,34 +122,31 @@
     if (els.apiKeyField) els.apiKeyField.hidden = provider === 'ollama';
   }
 
-function startVoiceMode() {
+  function startVoiceMode() {
     console.log('Activating voice mode...');
-    
+
     if (!state.recognition) {
-      showError('Voice not supported');
+      showError('Voice not supported in this browser');
       return;
     }
-    
-    // Don't re-start if already active
+
     if (state.voiceMode) {
       console.log('Voice already active');
       return;
     }
-    
-    // Activate voice mode and show UI
+
     state.voiceMode = true;
-    
+
     if (els.chatMode) els.chatMode.style.display = 'none';
     if (els.voiceMode) els.voiceMode.style.display = 'flex';
     if (els.voiceStatus) els.voiceStatus.textContent = 'Listening...';
-    
-    // Start recognition
+
     try {
       state.recognition.start();
       console.log('Recognition started');
     } catch (e) {
       console.error('Start error:', e);
-      showError('Allow microphone');
+      showError('Allow microphone access');
       state.voiceMode = false;
     }
   }
@@ -130,23 +154,22 @@ function startVoiceMode() {
   function stopVoiceMode() {
     console.log('Deactivating voice mode...');
     state.voiceMode = false;
-    
-    // Stop recognition
+
     if (state.recognition) {
       try { state.recognition.stop(); } catch (e) {}
     }
-    
-    // Restore UI
+
     if (els.voiceMode) els.voiceMode.style.display = 'none';
     if (els.chatMode) els.chatMode.style.display = 'flex';
     if (els.voiceStatus) els.voiceStatus.textContent = '';
+    if (els.micBtn) els.micBtn.classList.remove('active');
   }
-         
+
   function processVoiceCommand(text) {
     text = text.toLowerCase().trim();
     var cmd = text.split(' ')[0];
     var arg = text.split(' ').slice(1).join(' ');
-    
+
     if (cmd === 'search' || cmd === 'find') {
       executeCommand('search_youtube', { query: arg || text });
     } else if (cmd === 'open') {
@@ -158,11 +181,12 @@ function startVoiceMode() {
     } else if (cmd === 'volume') {
       var level = parseInt(arg) || 50;
       executeCommand('volume_control', { level: level });
-    } else if (cmd === 'stop' || cmd === 'exit') {
+    } else if (cmd === 'stop' || cmd === 'exit' || cmd === 'cancel') {
       stopVoiceMode();
       showToast('Voice mode ended');
     } else {
       sendMessage(text);
+      setTimeout(function() { stopVoiceMode(); }, 1000);
     }
   }
 
@@ -170,7 +194,11 @@ function startVoiceMode() {
     var cmd = { action: action, params: params };
     console.log('Executing:', cmd);
     if (action === 'open_url') {
-      send('user_message', { projectId: state.currentProjectId, chatId: state.currentChatId, text: 'Open ' + params.url });
+      send('user_message', {
+        projectId: state.currentProjectId,
+        chatId: state.currentChatId,
+        text: 'Open ' + params.url
+      });
     }
     showToast('Command: ' + action);
   }
@@ -188,12 +216,16 @@ function startVoiceMode() {
     showToast(msg, 'error');
   }
 
+  function showSuccess(msg) {
+    showToast(msg, 'success');
+  }
+
   function connect() {
     var wsUrl = 'ws://127.0.0.1:8765/ws';
     try {
       state.ws = new WebSocket(wsUrl);
     } catch (e) {
-      showError('Cannot connect');
+      showError('Cannot connect to backend');
       return;
     }
 
@@ -238,16 +270,22 @@ function startVoiceMode() {
         state.messages = [];
         state.currentProjectId = payload.project.id;
         state.currentChatId = payload.chat.id;
-        renderAll(); showSuccess('New project created'); break;
+        renderAll();
+        showSuccess('New project created');
+        break;
       case 'chat_created':
         state.chats.unshift(payload);
         state.currentChatId = payload.id;
-        state.messages = []; renderAll(); break;
+        state.messages = [];
+        renderAll();
+        break;
       case 'chat_loaded':
         state.currentProjectId = payload.projectId;
         state.currentChatId = payload.chatId;
         state.chats = payload.chats || [];
-        state.messages = payload.messages || []; renderAll(); break;
+        state.messages = payload.messages || [];
+        renderAll();
+        break;
       case 'settings':
         state.settings = Object.assign(state.settings, payload);
         applySettings();
@@ -259,13 +297,13 @@ function startVoiceMode() {
       case 'message_saved':
         state.chats = payload.chats || state.chats;
         state.messages = payload.messages || state.messages;
-        renderAll(); break;
+        renderAll();
+        break;
       case 'error': showError(payload.message || 'Error'); break;
     }
   }
 
   function loadBootstrap(payload) {
-    // Merge settings from backend with local
     if (payload.settings) {
       state.settings = Object.assign({}, state.settings, payload.settings);
       console.log('Bootstrap settings:', state.settings);
@@ -277,7 +315,7 @@ function startVoiceMode() {
     state.currentChatId = payload.currentChatId;
     applySettings();
     renderAll();
-    
+
     if (state.settings.onboarding_completed !== 'true') {
       if (els.onboardingPanel) els.onboardingPanel.hidden = false;
     }
@@ -286,10 +324,11 @@ function startVoiceMode() {
   function applySettings() {
     var p = state.settings.provider || 'ollama';
     if (els.providerSetting) els.providerSetting.value = p;
-    if (els.aiProvider) els.aiProvider.textContent = p === 'ollama' ? 'LOCAL' : p.toUpperCase();
+    if (els.aiProvider) {
+      els.aiProvider.textContent = p === 'ollama' ? 'LOCAL' : p.toUpperCase();
+    }
     if (els.voiceSetting) els.voiceSetting.value = state.settings.voice || 'en-US-GuyNeural';
-    
-    // Also populate API key fields
+
     if (els.openaiKeySetting) els.openaiKeySetting.value = state.settings.openai_key || '';
     if (els.anthropicKeySetting) els.anthropicKeySetting.value = state.settings.anthropic_key || '';
     if (els.geminiKeySetting) els.geminiKeySetting.value = state.settings.gemini_key || '';
@@ -327,19 +366,27 @@ function startVoiceMode() {
     state.messages.slice(-50).forEach(function(m) {
       var d = document.createElement('div');
       d.className = 'message ' + m.role;
-      d.innerHTML = m.content ? m.content.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>').replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>') : '';
+      d.innerHTML = m.content
+        ? m.content.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>')
+        : '';
       els.messages.appendChild(d);
     });
     els.messages.scrollTop = els.messages.scrollHeight;
   }
 
-  function sendMessage() {
-    var text = els.messageInput ? els.messageInput.value.trim() : '';
-    if (!text || state.isStreaming) return;
-    els.messageInput.value = '';
-    state.messages.push({ role: 'user', content: text });
+  function sendMessage(text) {
+    var input = text || (els.messageInput ? els.messageInput.value.trim() : '');
+    if (!input || state.isStreaming) return;
+    if (!text && els.messageInput) els.messageInput.value = '';
+    state.messages.push({ role: 'user', content: input });
     renderMessages();
-    send('user_message', { projectId: state.currentProjectId, chatId: state.currentChatId, text: text });
+    send('user_message', {
+      projectId: state.currentProjectId,
+      chatId: state.currentChatId,
+      text: input
+    });
   }
 
   function startStream() {
@@ -382,18 +429,29 @@ function startVoiceMode() {
 
   function send(type, payload) {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return false;
-    try { state.ws.send(JSON.stringify({ type: type, payload: payload || {} })); return true; }
-    catch (e) { return false; }
+    try {
+      state.ws.send(JSON.stringify({ type: type, payload: payload || {} }));
+      return true;
+    } catch (e) { return false; }
   }
 
   function completeOnboarding(force) {
-    var provider = force ? 'ollama' : (document.querySelector('[data-provider].active') || {}).dataset.provider || 'ollama';
+    var provider = force ? 'ollama' :
+      (document.querySelector('[data-provider].active') || {}).dataset.provider || 'ollama';
     var key = els.onboardingApiKey ? els.onboardingApiKey.value.trim() : '';
     if (provider !== 'ollama' && !key) {
       if (els.onboardingError) els.onboardingError.textContent = 'API key required';
       return;
     }
-    var patch = { provider: provider, model: provider === 'openai' ? 'gpt-4o-mini' : provider === 'anthropic' ? 'claude-3-haiku-20240307' : provider === 'gemini' ? 'gemini-1.5-flash' : 'llama3.1', language: 'auto', voice: 'en-US-GuyNeural', onboarding_completed: 'true' };
+    var patch = {
+      provider: provider,
+      model: provider === 'openai' ? 'gpt-4o-mini' :
+             provider === 'anthropic' ? 'claude-3-haiku-20240307' :
+             provider === 'gemini' ? 'gemini-1.5-flash' : 'llama3.1',
+      language: 'auto',
+      voice: 'en-US-GuyNeural',
+      onboarding_completed: 'true'
+    };
     if (provider === 'openai') patch.openai_key = key;
     else if (provider === 'anthropic') patch.anthropic_key = key;
     else if (provider === 'gemini') patch.gemini_key = key;
@@ -409,38 +467,36 @@ function startVoiceMode() {
     var ak = els.anthropicKeySetting ? els.anthropicKeySetting.value.trim() : '';
     var gk = els.geminiKeySetting ? els.geminiKeySetting.value.trim() : '';
     var voice = els.voiceSetting ? els.voiceSetting.value : 'en-US-GuyNeural';
-    
+
     var model = 'llama3.1';
     if (p === 'openai') model = 'gpt-4o-mini';
     else if (p === 'anthropic') model = 'claude-3-haiku-20240307';
     else if (p === 'gemini') model = 'gemini-1.5-flash';
-    
-    var patch = { 
-      provider: p, 
-      model: model, 
-      language: 'auto', 
-      voice: voice, 
-      openai_key: ok, 
+
+    var patch = {
+      provider: p,
+      model: model,
+      language: 'auto',
+      voice: voice,
+      openai_key: ok,
       anthropic_key: ak,
       gemini_key: gk,
       onboarding_completed: 'true'
     };
-    
+
     console.log('Saving settings:', patch);
-    
-    // Save to localStorage
+
     state.settings = patch;
     saveSettingsToStorage();
-    
-    // Send to backend
+
     send('settings_update', patch);
-    
+
     els.settingsPanel.hidden = true;
     showToast('Settings saved: ' + p.toUpperCase());
     applySettings();
   }
 
-function initSpeech() {
+  function initSpeech() {
     console.log('Initializing speech recognition...');
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
@@ -452,12 +508,12 @@ function initSpeech() {
       state.recognition.continuous = false;
       state.recognition.interimResults = true;
       state.recognition.lang = 'en-US';
-      
+
       state.recognition.onstart = function() {
         console.log('Speech started');
         if (els.micBtn) els.micBtn.classList.add('active');
       };
-      
+
       state.recognition.onresult = function(e) {
         console.log('Speech result received');
         var result = e.results[e.results.length - 1];
@@ -467,7 +523,6 @@ function initSpeech() {
           if (text) {
             if (state.voiceMode && els.voiceStatus) {
               els.voiceStatus.textContent = 'Got: ' + text;
-              // Process voice command
               processVoiceCommand(text);
             } else if (els.messageInput) {
               els.messageInput.value = text;
@@ -475,85 +530,29 @@ function initSpeech() {
           }
         }
       };
-      
+
       state.recognition.onend = function() {
         console.log('Speech ended');
         if (els.micBtn) els.micBtn.classList.remove('active');
-        
-        // If voice mode was active, show result briefly then restore
+
         if (state.voiceMode) {
           setTimeout(function() {
             stopVoiceMode();
           }, 1500);
         }
       };
-      
+
       state.recognition.onerror = function(e) {
         console.log('Speech error:', e.error);
         if (e.error !== 'no-speech' && e.error !== 'aborted') {
           showError('Voice error: ' + e.error);
         }
       };
-      
+
       console.log('Speech recognition ready');
     } catch (e) {
       console.log('Speech init error:', e);
     }
-  }
-    try {
-      state.recognition = new SR();
-      state.recognition.continuous = false;
-      state.recognition.interimResults = true;
-      state.recognition.lang = 'en-US';
-      state.recognition.onstart = function() {
-        if (els.micBtn) els.micBtn.classList.add('active');
-        showToast('Listening...');
-      };
-      state.recognition.onresult = function(e) {
-        var result = e.results[e.results.length - 1];
-        if (result.isFinal) {
-          var text = result[0].transcript.trim();
-          if (text && els.messageInput) {
-            els.messageInput.value = text;
-            showToast('Voice received: ' + text);
-          }
-        }
-      };
-      state.recognition.onend = function() {
-        if (els.micBtn) els.micBtn.classList.remove('active');
-        var text = els.messageInput ? els.messageInput.value.trim() : '';
-        if (text && !state.isStreaming) {
-          sendMessage();
-        }
-      };
-      state.recognition.onerror = function(e) {
-        showError('Voice error: ' + e.error);
-        if (els.micBtn) els.micBtn.classList.remove('active');
-      };
-    } catch (e) {
-      console.log('Speech init error:', e);
-    }
-  }
-
-  function toggleVoice() {
-    startVoiceMode();
-  }
-        }
-      };
-      state.recognition.onend = function() {
-        if (els.micBtn) els.micBtn.classList.remove('active');
-        if (state.voiceMode) {
-          state.voiceMode = false;
-          if (els.voiceMode) els.voiceMode.hidden = true;
-          if (els.chatMode) els.chatMode.hidden = false;
-        }
-      };
-    } catch (e) {}
-  }
-
-  function toggleVoice() {
-    if (state.voiceMode) stopVoiceMode();
-    else startVoiceMode();
   }
 
   function startClock() {
@@ -563,7 +562,8 @@ function initSpeech() {
         els.currentTime.textContent = now.toLocaleTimeString('en-US', { hour12: false });
       }
     }
-    update(); setInterval(update, 1000);
+    update();
+    setInterval(update, 1000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

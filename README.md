@@ -12,46 +12,46 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=for-the-badge&logo=node.js)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Electron-Desktop-47848?style=for-the-badge&logo=electron)](https://www.electronjs.org)
 
-> **Your personal AI assistant, inspired by Iron Man's J.A.R.V.I.S.**
+> Your personal AI assistant, inspired by Iron Man's J.A.R.V.I.S.
 
 </div>
 
 ---
 
-## Overview
+## 📖 Overview
 
 J.A.R.V.I.S is a lightweight, cross-platform desktop AI assistant with voice capabilities, featuring a stunning Iron Man-inspired arc reactor interface. Built with Electron, FastAPI, and vanilla JavaScript - no heavy frameworks, just pure performance.
 
-## Features
+## ⚡ Features
 
 | Feature | Description |
 |---------|-------------|
-| Arc Reactor UI | Stunning HUD interface with animated power orb |
-| Voice Mode | Click the mic for voice input with green reactor animation |
-| Multi-AI Support | Ollama (local), OpenAI, Anthropic, Gemini, Groq |
-| Text-to-Speech | JARVIS speaks responses aloud |
-| Chat History | Organized projects and conversation sessions |
-| API Key Management | Persistent settings saved to database |
-| Keyboard Shortcuts | Enter to send, ESC to close panels |
-| System Commands | Search, open URLs, screenshots, volume control |
-| Dark Theme | Iron Man JARVIS style with arc reactor colors |
+| 🎨 Arc Reactor UI | Stunning HUD interface with animated power orb |
+| 🎤 Voice Mode | Click the mic for voice input with green reactor animation |
+| 🤖 Multi-AI Support | Ollama (local), OpenAI, Anthropic, Gemini, Groq |
+| 🔊 Text-to-Speech | JARVIS speaks responses aloud |
+| 📜 Chat History | Organized projects and conversation sessions |
+| 🔑 API Key Management | Persistent settings saved to database |
+| ⌨️ Keyboard Shortcuts | Enter to send, ESC to close panels |
+| 💻 System Commands | Search, open URLs, screenshots, volume control |
+| 🌙 Dark Theme | Iron Man JARVIS style with arc reactor colors |
 
-## Screenshots
+## 📸 Screenshots
 
 <div align="center">
   <em>Screenshots coming soon</em>
 </div>
 
-## Requirements
+## 📋 Requirements
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| Python | 3.10+ | Backend API server |
-| Node.js | 18+ | Electron desktop app |
-| Ollama | Latest | Local AI models (optional) |
-| npm | 9+ | Package management |
+| 🐍 Python | 3.10+ | Backend API server |
+| 🟢 Node.js | 18+ | Electron desktop app |
+| 🦙 Ollama | Latest | Local AI models (optional) |
+| 📦 npm | 9+ | Package management |
 
-## Installation
+## 🚀 Installation
 
 ### 1. Clone the Repository
 
@@ -80,7 +80,7 @@ pip install -r requirements.txt
 npm install
 ```
 
-## Running the App
+## ▶️ Running the App
 
 ### Option 1: One-Command Start (Recommended)
 
@@ -116,9 +116,9 @@ npm run dev
 
 This will kill any existing processes on port 8765 and restart the backend.
 
-## Configuration
+## ⚙️ Configuration
 
-### API Keys
+### 🔑 API Keys
 
 1. Launch the application
 2. Click the **Settings** icon
@@ -129,14 +129,14 @@ This will kill any existing processes on port 8765 and restart the backend.
    - **Groq** (Fast inference)
 4. Keys are automatically saved to the database and localStorage
 
-### Using Ollama (Free Local AI)
+### 🦙 Using Ollama (Free Local AI)
 
 1. Install [Ollama](https://ollama.ai)
 2. Pull a model: `ollama pull llama3.1`
 3. Select "Ollama" in JARVIS settings
 4. No API key required - runs 100% locally!
 
-## Voice Commands
+## 🎙️ Voice Commands
 
 | Command | Action |
 |---------|--------|
@@ -147,7 +147,7 @@ This will kill any existing processes on port 8765 and restart the backend.
 | `mute` | Mute audio |
 | `unmute` | Unmute audio |
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 jarvis/
@@ -173,7 +173,7 @@ jarvis/
 └── package.json                 # Dependencies
 ```
 
-## Available NPM Scripts
+## 🔧 Available NPM Scripts
 
 | Command | Description |
 |---------|-------------|
@@ -184,7 +184,7 @@ jarvis/
 | `npm run check:js` | Lint JavaScript |
 | `npm run check:python` | Check Python syntax |
 
-## Troubleshooting
+## 🛠️ Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
@@ -193,7 +193,7 @@ jarvis/
 | Ollama not working | Run `ollama pull llama3.1` |
 | Buttons not working | Check browser console (Ctrl+Shift+I) for errors |
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -201,7 +201,7 @@ jarvis/
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
+## 📄 License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 

@@ -123,6 +123,40 @@
             </button>
           </div>
         </div>
+
+        <!-- Voice Mode -->
+        <div class="voice-mode" id="voiceMode" style="display: none;">
+          <div class="voice-reactor">
+            <div class="jarvis-reactor voice-reactor-svg">
+              <svg viewBox="0 0 100 100">
+                <defs>
+                  <radialGradient id="voiceReactorG" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#00ff88"/>
+                    <stop offset="100%" stop-color="#003322"/>
+                  </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="48" fill="none" stroke="#00ff88" stroke-width="1" opacity="0.5">
+                  <animate attributeName="r" values="48;50;48" dur="1s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#00ff88" stroke-width="0.5" opacity="0.6">
+                  <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="8s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="50" cy="50" r="28" fill="url(#voiceReactorG)" opacity="0.9">
+                  <animate attributeName="r" values="28;32;28" dur="0.8s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="50" cy="50" r="12" fill="#ffffff" opacity="0.95">
+                  <animate attributeName="opacity" values="0.95;0.5;0.95" dur="0.6s" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+              <div class="reactor-label" style="color: #00ff88;">VOICE MODE</div>
+            </div>
+            <div class="voice-status" id="voiceStatus">Listening...</div>
+            <div class="voice-waves">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <button class="voice-cut-btn" id="voiceCutBtn">STOP</button>
+          </div>
+        </div>
       </section>
     </main>
 
