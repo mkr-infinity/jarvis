@@ -131,13 +131,9 @@ function startVoiceMode() {
     console.log('Deactivating voice mode...');
     state.voiceMode = false;
     
-    // Stop recognition but handle errors
+    // Stop recognition
     if (state.recognition) {
-      try {
-        state.recognition.stop();
-      } catch (e) {
-        console.log('Already stopped');
-      }
+      try { state.recognition.stop(); } catch (e) {}
     }
     
     // Restore UI
@@ -145,21 +141,7 @@ function startVoiceMode() {
     if (els.chatMode) els.chatMode.style.display = 'flex';
     if (els.voiceStatus) els.voiceStatus.textContent = '';
   }
-    
-    try {
-      state.recognition.start();
-      showToast('Listening...');
-    } catch (e) {
-      showError('Allow mic permission');
-    }
-  }
-
-  function stopVoiceMode() {
-    if (state.recognition) {
-      try { state.recognition.stop(); } catch (e) {}
-    }
-  }
-
+         
   function processVoiceCommand(text) {
     text = text.toLowerCase().trim();
     var cmd = text.split(' ')[0];
