@@ -18,40 +18,44 @@
 
 ---
 
-## 📖 Overview
+## Overview
 
-J.A.R.V.I.S is a lightweight, cross-platform desktop AI assistant with voice capabilities, featuring a stunning Iron Man-inspired arc reactor interface. Built with Electron, FastAPI, and vanilla JavaScript - no heavy frameworks, just pure performance.
+J.A.R.V.I.S is a lightweight, cross-platform desktop AI assistant with voice capabilities and real-time streaming, featuring a stunning Iron Man-inspired arc reactor interface with multiple themes. Built with Electron, FastAPI, and vanilla JavaScript - no heavy frameworks, just pure performance.
 
-## ⚡ Features
+## Features
 
 | Feature | Description |
 |---------|-------------|
-| 🎨 Arc Reactor UI | Stunning HUD interface with animated power orb |
-| 🎤 Voice Mode | Click the mic for voice input with green reactor animation |
-| 🤖 Multi-AI Support | Ollama (local), OpenAI, Anthropic, Gemini, Groq |
-| 🔊 Text-to-Speech | JARVIS speaks responses aloud |
-| 📜 Chat History | Organized projects and conversation sessions |
-| 🔑 API Key Management | Persistent settings saved to database |
-| ⌨️ Keyboard Shortcuts | Enter to send, ESC to close panels |
-| 💻 System Commands | Search, open URLs, screenshots, volume control |
-| 🌙 Dark Theme | Iron Man JARVIS style with arc reactor colors |
+| Arc Reactor UI | Stunning HUD interface with animated power orb |
+| Real-Time Streaming | Word-by-word AI responses with typing cursor |
+| Thinking States | Reactor glows orange while thinking, cyan while replying |
+| Voice Mode | Click the mic for voice input with green reactor animation |
+| Auto Model Detection | Automatically fetches all available models for your API key |
+| Quick Model Switcher | Switch models instantly from the header AI stat |
+| Multi-AI Support | Ollama (local), OpenAI, Anthropic, Gemini, Groq |
+| 6 Professional Themes | JARVIS, Matrix, Sunset, Violet, Arctic, Gold |
+| Text-to-Speech | JARVIS speaks responses aloud |
+| Chat History | Organized projects and conversation sessions |
+| API Key Validation | Checks key validity and shows clear error messages |
+| Keyboard Shortcuts | Enter to send, ESC to close panels |
+| System Commands | Search, open URLs, screenshots, volume control |
 
-## 📸 Screenshots
+## Screenshots
 
 <div align="center">
   <em>Screenshots coming soon</em>
 </div>
 
-## 📋 Requirements
+## Requirements
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| 🐍 Python | 3.10+ | Backend API server |
-| 🟢 Node.js | 18+ | Electron desktop app |
-| 🦙 Ollama | Latest | Local AI models (optional) |
-| 📦 npm | 9+ | Package management |
+| Python | 3.10+ | Backend API server |
+| Node.js | 18+ | Electron desktop app |
+| Ollama | Latest | Local AI models (optional) |
+| npm | 9+ | Package management |
 
-## 🚀 Installation
+## Installation
 
 ### 1. Clone the Repository
 
@@ -64,23 +68,17 @@ cd jarvis
 
 **Linux/macOS:**
 ```bash
-# Python backend dependencies
 pip install -r requirements.txt
-
-# Electron frontend dependencies
 npm install
 ```
 
 **Windows:**
 ```cmd
-:: Python backend dependencies
 pip install -r requirements.txt
-
-:: Electron frontend dependencies
 npm install
 ```
 
-## ▶️ Running the App
+## Running the App
 
 ### Option 1: One-Command Start (Recommended)
 
@@ -114,11 +112,11 @@ npm start
 npm run dev
 ```
 
-This will kill any existing processes on port 8765 and restart the backend.
+This kills any existing processes on port 8765 and restarts the backend.
 
-## ⚙️ Configuration
+## Configuration
 
-### 🔑 API Keys
+### API Keys
 
 1. Launch the application
 2. Click the **Settings** icon
@@ -127,16 +125,33 @@ This will kill any existing processes on port 8765 and restart the backend.
    - **Anthropic** (Claude)
    - **Gemini** (Google)
    - **Groq** (Fast inference)
-4. Keys are automatically saved to the database and localStorage
+4. JARVIS automatically validates the key and detects all available models
+5. Select your preferred model from the dropdown
 
-### 🦙 Using Ollama (Free Local AI)
+### Using Ollama (Free Local AI)
 
 1. Install [Ollama](https://ollama.ai)
 2. Pull a model: `ollama pull llama3.1`
 3. Select "Ollama" in JARVIS settings
 4. No API key required - runs 100% locally!
 
-## 🎙️ Voice Commands
+### Switching Models
+
+**From Header:** Hover over the AI stat in the top bar to reveal a quick model dropdown. Click any model to switch instantly.
+
+**From Settings:** Open Settings -> AI CORE -> Select a model from the dropdown. Click the refresh button to re-detect models.
+
+### Themes
+
+Open Settings -> AI CORE -> Scroll to the Theme grid. Choose from:
+- **JARVIS** - Classic cyan/blue Iron Man style
+- **Matrix** - Green hacker aesthetic
+- **Sunset** - Warm red/orange tones
+- **Violet** - Purple/magenta glow
+- **Arctic** - Cool blue ice theme
+- **Gold** - Warm golden accents
+
+## Voice Commands
 
 | Command | Action |
 |---------|--------|
@@ -144,28 +159,30 @@ This will kill any existing processes on port 8765 and restart the backend.
 | `open [url]` | Open a URL in browser |
 | `screenshot` | Capture screen |
 | `volume [0-100]` | Set system volume |
-| `mute` | Mute audio |
-| `unmute` | Unmute audio |
+| `mute` / `unmute` | Toggle audio |
 
-## 📁 Project Structure
+Voice mode auto-retries on network errors and gracefully handles microphone issues.
+
+## Project Structure
 
 ```
 jarvis/
 ├── backend/
 │   └── app/
-│       ├── main.py              # FastAPI server
+│       ├── main.py              # FastAPI server + WebSocket
 │       └── services/
-│           ├── ai_engine.py     # AI provider integration
+│           ├── ai_engine.py     # Streaming AI for all providers
 │           ├── database.py      # SQLite operations
-│           └── command_engine.py # System commands
+│           ├── command_engine.py # System commands
+│           └── speech_engine.py # Text-to-Speech
 ├── electron/
 │   └── main.js                  # Electron main process
 ├── renderer/
 │   ├── index.html               # Main UI
 │   ├── styles/
-│   │   └── app.css              # JARVIS theme
+│   │   └── app.css              # JARVIS themes (6 total)
 │   └── scripts/
-│       └── app.js               # Frontend logic
+│       └── app.js               # Frontend logic + voice
 ├── scripts/
 │   ├── start.js                 # Custom launcher
 │   ├── run.sh                   # Linux/Mac script
@@ -173,7 +190,7 @@ jarvis/
 └── package.json                 # Dependencies
 ```
 
-## 🔧 Available NPM Scripts
+## Available NPM Scripts
 
 | Command | Description |
 |---------|-------------|
@@ -184,7 +201,7 @@ jarvis/
 | `npm run check:js` | Lint JavaScript |
 | `npm run check:python` | Check Python syntax |
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
@@ -192,8 +209,10 @@ jarvis/
 | Electron not launching | Requires display - won't work on headless servers |
 | Ollama not working | Run `ollama pull llama3.1` |
 | Buttons not working | Check browser console (Ctrl+Shift+I) for errors |
+| Voice says "no internet" | Voice mode now auto-retries on network errors |
+| API key not working | Check Settings for the specific error message explaining why |
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -201,7 +220,7 @@ jarvis/
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
