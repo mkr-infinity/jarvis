@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # J.A.R.V.I.S Desktop AI Assistant
 
 <p align="center">
@@ -395,3 +396,8 @@ ollama pull llama3.1
 <p align="center">
   Made with ❤️ by <a href="https://github.com/mkr-infinity">Mohammad Kaif Raja</a>
 </p>
+=======
+# jarvis
+a to do future project 
+may be 
+>>>>>>> 78210ee2a44dd96f6e67ab64fcc789dd7540934a
