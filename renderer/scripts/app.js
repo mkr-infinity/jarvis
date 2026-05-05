@@ -5,10 +5,26 @@
     ws: null, settings: {}, projects: [], chats: [], messages: [],
     currentProjectId: null, currentChatId: null, assistantBuffer: '',
     reconnectTimer: null, isStreaming: false, recognition: null,
-    connected: false, voiceMode: false
+    connected: false, voiceMode: false, pendingSettings: null,
+    pendingOnboarding: null, detectedModels: {}, isDetecting: false
   };
 
   var els = {};
+
+  var KEY_FIELDS = {
+    openai: 'openai_key',
+    anthropic: 'anthropic_key',
+    gemini: 'gemini_key',
+    groq: 'groq_key'
+  };
+
+  var DEFAULT_MODELS = {
+    openai: 'gpt-4o-mini',
+    anthropic: 'claude-3-haiku-20240307',
+    gemini: 'gemini-1.5-flash',
+    groq: 'llama-3.1-8b-instant',
+    ollama: 'llama3.1'
+  };
 
   function init() {
     try {
@@ -26,16 +42,18 @@
   function $(id) { return document.getElementById(id); }
 
   function cacheElements() {
-  var ids = [
-    'connectionStatus','projectList','chatList','messages','messageInput',
-    'micBtn','sendBtn','newChatBtn','newProjectBtn','settingsBtn',
-    'onboardingPanel','settingsPanel','skipOnboardingBtn','finishOnboardingBtn',
-    'onboardingApiKey','apiKeyField','onboardingError','providerSetting',
-    'openaiKeySetting','anthropicKeySetting','geminiKeySetting','groqKeySetting',
-    'voiceSetting','closeSettingsBtn','saveSettingsBtn','coreStatus','systemInfo',
-    'currentTime','aiProvider','toast','statusText','chatMode','voiceMode',
-    'voiceStatus','voiceCutBtn','modelStatus','modelStatusField'
-  ];
+    var ids = [
+      'connectionStatus','projectList','chatList','messages','messageInput',
+      'micBtn','sendBtn','newChatBtn','newProjectBtn','settingsBtn',
+      'onboardingPanel','settingsPanel','skipOnboardingBtn','finishOnboardingBtn',
+      'onboardingApiKey','apiKeyField','onboardingError','providerSetting',
+      'modelSetting','refreshModelsBtn',
+      'openaiKeySetting','anthropicKeySetting','geminiKeySetting','groqKeySetting',
+      'openaiKeyGroup','anthropicKeyGroup','geminiKeyGroup','groqKeyGroup',
+      'voiceSetting','closeSettingsBtn','saveSettingsBtn','coreStatus','systemInfo',
+      'currentTime','aiProvider','toast','statusText','chatMode','voiceMode',
+      'voiceStatus','voiceCutBtn','modelStatus'
+    ];
     ids.forEach(function(id) { els[id] = $(id); });
   }
 
@@ -71,6 +89,7 @@
     };
     if (els.settingsBtn) els.settingsBtn.onclick = function() {
       els.settingsPanel.hidden = false;
+      updateApiKeyVisibility();
     };
     if (els.closeSettingsBtn) els.closeSettingsBtn.onclick = function() {
       els.settingsPanel.hidden = true;
@@ -84,6 +103,32 @@
     if (els.finishOnboardingBtn) els.finishOnboardingBtn.onclick = function() {
       completeOnboarding(false);
     };
+    if (els.providerSetting) {
+      els.providerSetting.onchange = function() {
+        updateApiKeyVisibility();
+        autoDetectModels(this.value);
+      };
+    }
+    if (els.modelSetting) {
+      els.modelSetting.onchange = function() {
+        state.settings.model = this.value;
+        saveSettingsToStorage();
+        updateHeaderModel();
+      };
+    }
+    if (els.refreshModelsBtn) {
+      els.refreshModelsBtn.onclick = function() {
+        autoDetectModels(els.providerSetting.value);
+      };
+    }
+
+    var keyInputs = [els.openaiKeySetting, els.anthropicKeySetting, els.geminiKeySetting, els.groqKeySetting];
+    keyInputs.forEach(function(input) {
+      if (input) {
+        input.onchange = function() { onApiKeyChanged(); };
+        input.addEventListener('input', debounce(onApiKeyChanged, 1500));
+      }
+    });
 
     document.querySelectorAll('[data-provider]').forEach(function(btn) {
       btn.onclick = function() { selectProvider(this.dataset.provider); };
@@ -116,6 +161,56 @@
     };
   }
 
+  function debounce(fn, delay) {
+    var timer = null;
+    return function() {
+      var args = arguments;
+      var ctx = this;
+      clearTimeout(timer);
+      timer = setTimeout(function() { fn.apply(ctx, args); }, delay);
+    };
+  }
+
+  function onApiKeyChanged() {
+    var provider = els.providerSetting.value;
+    if (provider === 'ollama') return;
+    var key = getCurrentApiKey(provider);
+    if (key && key.length > 5) {
+      autoDetectModels(provider);
+    }
+  }
+
+  function getCurrentApiKey(provider) {
+    var fieldId = provider + 'KeySetting';
+    var field = els[fieldId];
+    return field ? field.value.trim() : '';
+  }
+
+  function updateApiKeyVisibility() {
+    var provider = els.providerSetting.value;
+    var groups = ['openaiKeyGroup', 'anthropicKeyGroup', 'geminiKeyGroup', 'groqKeyGroup'];
+    groups.forEach(function(gid) {
+      if (els[gid]) els[gid].hidden = true;
+    });
+    if (provider !== 'ollama') {
+      var groupId = provider + 'KeyGroup';
+      if (els[groupId]) els[groupId].hidden = false;
+    }
+  }
+
+  function updateHeaderModel() {
+    if (!els.aiProvider) return;
+    var p = state.settings.provider || 'ollama';
+    var model = state.settings.model || '';
+    var label = p === 'ollama' ? 'LOCAL' : p.toUpperCase();
+    if (model) {
+      var short = model.split('/').pop().split('-').slice(-3).join('-');
+      els.aiProvider.textContent = label + ' (' + short + ')';
+    } else {
+      els.aiProvider.textContent = label;
+    }
+  }
+
   function selectProvider(provider) {
     document.querySelectorAll('[data-provider]').forEach(function(btn) {
       btn.classList.toggle('active', btn.dataset.provider === provider);
@@ -123,43 +218,104 @@
     if (els.apiKeyField) els.apiKeyField.hidden = provider === 'ollama';
   }
 
+  function autoDetectModels(provider) {
+    if (provider === 'ollama') {
+      populateModels(provider, ['llama3.1', 'llama3.2', 'mistral', 'phi3']);
+      return;
+    }
+
+    var apiKey = getCurrentApiKey(provider);
+    if (!apiKey || apiKey.length < 5) {
+      resetModelSelector(provider);
+      return;
+    }
+
+    if (state.isDetecting) return;
+    state.isDetecting = true;
+
+    if (els.refreshModelsBtn) els.refreshModelsBtn.classList.add('loading');
+    if (els.modelSetting) {
+      els.modelSetting.disabled = true;
+      els.modelSetting.innerHTML = '<option value="">Detecting models...</option>';
+    }
+    showModelStatus('checking', 'Connecting to ' + provider.toUpperCase() + '...');
+
+    send('detect_models', { provider: provider, api_key: apiKey });
+  }
+
+  function resetModelSelector(provider) {
+    if (els.modelSetting) {
+      els.modelSetting.innerHTML = '<option value="">Enter API key to detect models...</option>';
+      els.modelSetting.disabled = true;
+    }
+    if (els.refreshModelsBtn) els.refreshModelsBtn.disabled = true;
+    if (els.modelStatus) els.modelStatus.hidden = true;
+  }
+
+  function populateModels(provider, models) {
+    state.detectedModels[provider] = models;
+    var currentModel = state.settings.model || '';
+
+    if (els.modelSetting) {
+      els.modelSetting.innerHTML = '';
+      els.modelSetting.disabled = false;
+
+      models.forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        if (m === currentModel) opt.selected = true;
+        els.modelSetting.appendChild(opt);
+      });
+
+      if (!currentModel || models.indexOf(currentModel) === -1) {
+        els.modelSetting.value = models[0];
+        state.settings.model = models[0];
+        saveSettingsToStorage();
+      }
+    }
+
+    if (els.refreshModelsBtn) els.refreshModelsBtn.disabled = false;
+    updateHeaderModel();
+  }
+
+  function showModelStatus(type, msg) {
+    if (!els.modelStatus) return;
+    els.modelStatus.hidden = false;
+    els.modelStatus.className = 'model-status ' + type;
+    els.modelStatus.textContent = msg;
+  }
+
+  function hideModelStatus() {
+    if (els.modelStatus) els.modelStatus.hidden = true;
+  }
+
   function startVoiceMode() {
     console.log('Activating voice mode...');
-
     if (!state.recognition) {
       showError('Voice not supported in this browser');
       return;
     }
-
-    if (state.voiceMode) {
-      console.log('Voice already active');
-      return;
-    }
+    if (state.voiceMode) return;
 
     state.voiceMode = true;
-
     if (els.chatMode) els.chatMode.style.display = 'none';
     if (els.voiceMode) els.voiceMode.style.display = 'flex';
     if (els.voiceStatus) els.voiceStatus.textContent = 'Listening...';
 
     try {
       state.recognition.start();
-      console.log('Recognition started');
     } catch (e) {
-      console.error('Start error:', e);
       showError('Allow microphone access');
       state.voiceMode = false;
     }
   }
 
   function stopVoiceMode() {
-    console.log('Deactivating voice mode...');
     state.voiceMode = false;
-
     if (state.recognition) {
       try { state.recognition.stop(); } catch (e) {}
     }
-
     if (els.voiceMode) els.voiceMode.style.display = 'none';
     if (els.chatMode) els.chatMode.style.display = 'flex';
     if (els.voiceStatus) els.voiceStatus.textContent = '';
@@ -192,8 +348,7 @@
   }
 
   function executeCommand(action, params) {
-    var cmd = { action: action, params: params };
-    console.log('Executing:', cmd);
+    console.log('Executing:', action);
     if (action === 'open_url') {
       send('user_message', {
         projectId: state.currentProjectId,
@@ -236,6 +391,7 @@
       if (els.coreStatus) els.coreStatus.textContent = 'NOMINAL';
       if (els.systemInfo) els.systemInfo.textContent = 'READY';
       if (els.statusText) els.statusText.textContent = 'Online. Ready.';
+      updateHeaderModel();
       showToast('Connected to JARVIS');
     };
 
@@ -291,6 +447,7 @@
         state.settings = Object.assign(state.settings, payload);
         applySettings();
         saveSettingsToStorage();
+        updateHeaderModel();
         break;
       case 'assistant_start': startStream(); break;
       case 'assistant_token': addToken(payload.token || ''); break;
@@ -301,6 +458,8 @@
         renderAll();
         break;
       case 'models_detected':
+        state.isDetecting = false;
+        if (els.refreshModelsBtn) els.refreshModelsBtn.classList.remove('loading');
         handleModelsDetected(payload);
         break;
       case 'error': showError(payload.message || 'Error'); break;
@@ -310,7 +469,6 @@
   function loadBootstrap(payload) {
     if (payload.settings) {
       state.settings = Object.assign({}, state.settings, payload.settings);
-      console.log('Bootstrap settings:', state.settings);
     }
     state.projects = payload.projects || [];
     state.chats = payload.chats || [];
@@ -319,6 +477,7 @@
     state.currentChatId = payload.currentChatId;
     applySettings();
     renderAll();
+    updateHeaderModel();
 
     if (state.settings.onboarding_completed !== 'true') {
       if (els.onboardingPanel) els.onboardingPanel.hidden = false;
@@ -328,17 +487,26 @@
   function applySettings() {
     var p = state.settings.provider || 'ollama';
     if (els.providerSetting) els.providerSetting.value = p;
-    if (els.aiProvider) {
-      var model = state.settings.model || '';
-      var label = p === 'ollama' ? 'LOCAL' : p.toUpperCase();
-      els.aiProvider.textContent = model ? label + ' (' + model.split('-').slice(-2).join('-') + ')' : label;
-    }
     if (els.voiceSetting) els.voiceSetting.value = state.settings.voice || 'en-US-GuyNeural';
-
     if (els.openaiKeySetting) els.openaiKeySetting.value = state.settings.openai_key || '';
     if (els.anthropicKeySetting) els.anthropicKeySetting.value = state.settings.anthropic_key || '';
     if (els.geminiKeySetting) els.geminiKeySetting.value = state.settings.gemini_key || '';
     if (els.groqKeySetting) els.groqKeySetting.value = state.settings.groq_key || '';
+
+    var models = state.detectedModels[p];
+    if (models && models.length > 0) {
+      populateModels(p, models);
+      if (state.settings.model && models.indexOf(state.settings.model) !== -1) {
+        els.modelSetting.value = state.settings.model;
+      }
+    } else if (p !== 'ollama') {
+      resetModelSelector(p);
+    } else {
+      populateModels('ollama', ['llama3.1', 'llama3.2', 'mistral', 'phi3']);
+    }
+
+    updateApiKeyVisibility();
+    updateHeaderModel();
   }
 
   function renderAll() { renderProjects(); renderChats(); renderMessages(); }
@@ -399,10 +567,17 @@
   function startStream() {
     state.isStreaming = true;
     state.assistantBuffer = '';
-    if (els.statusText) els.statusText.textContent = 'Processing...';
+    if (els.statusText) {
+      els.statusText.textContent = 'Thinking';
+      els.statusText.innerHTML = 'Thinking<span class="thinking-dots"><span></span><span></span><span></span></span>';
+    }
+    var reactorDisplay = document.querySelector('.reactor-display');
+    var reactor = document.querySelector('.jarvis-reactor');
+    if (reactorDisplay) reactorDisplay.classList.add('thinking');
+    if (reactor) reactor.classList.add('thinking');
+
     var d = document.createElement('div');
     d.className = 'message assistant';
-    d.textContent = 'Processing...';
     d.dataset.streaming = 'true';
     els.messages.appendChild(d);
     els.messages.scrollTop = els.messages.scrollHeight;
@@ -411,13 +586,42 @@
   function addToken(t) {
     state.assistantBuffer += t;
     var s = els.messages ? els.messages.querySelector('[data-streaming="true"]') : null;
-    if (s) s.innerHTML = state.assistantBuffer.replace(/\n/g, '<br>');
+    if (s) {
+      s.innerHTML = state.assistantBuffer.replace(/\n/g, '<br>') + '<span class="typing-cursor"></span>';
+    }
     els.messages.scrollTop = els.messages.scrollHeight;
+
+    if (state.assistantBuffer.length > 3) {
+      var reactorDisplay = document.querySelector('.reactor-display');
+      var reactor = document.querySelector('.jarvis-reactor');
+      if (reactorDisplay && reactorDisplay.classList.contains('thinking')) {
+        reactorDisplay.classList.remove('thinking');
+        reactorDisplay.classList.add('replying');
+      }
+      if (reactor && reactor.classList.contains('thinking')) {
+        reactor.classList.remove('thinking');
+        reactor.classList.add('replying');
+      }
+      if (els.statusText) els.statusText.textContent = 'Replying...';
+    }
   }
 
   function endStream(payload) {
     state.isStreaming = false;
     if (els.statusText) els.statusText.textContent = 'Online. Ready.';
+    var reactorDisplay = document.querySelector('.reactor-display');
+    var reactor = document.querySelector('.jarvis-reactor');
+    if (reactorDisplay) {
+      reactorDisplay.classList.remove('thinking', 'replying');
+    }
+    if (reactor) {
+      reactor.classList.remove('thinking', 'replying');
+    }
+    var s = els.messages ? els.messages.querySelector('[data-streaming="true"]') : null;
+    if (s) {
+      var cursor = s.querySelector('.typing-cursor');
+      if (cursor) cursor.remove();
+    }
     state.chats = payload.chats || state.chats;
     state.messages = payload.messages || state.messages;
     renderAll();
@@ -452,22 +656,17 @@
     }
     if (els.onboardingError) els.onboardingError.textContent = '';
 
-    if (provider === 'ollama') {
-      finishOnboarding({ provider: 'ollama', model: 'llama3.1' });
+    if (provider === 'ollama' || !key) {
+      finishOnboarding({
+        provider: provider,
+        model: provider === 'ollama' ? 'llama3.1' : DEFAULT_MODELS[provider]
+      });
       return;
     }
 
-    if (!key) {
-      finishOnboarding({ provider: provider, model: getDefaultModel(provider) });
-      return;
-    }
-
-    els.onboardingError.textContent = 'Checking API key...';
+    els.onboardingError.textContent = 'Checking API key and detecting models...';
     send('detect_models', { provider: provider, api_key: key });
-
-    state.pendingOnboarding = { provider: provider };
-    var keyField = { openai: 'openai_key', anthropic: 'anthropic_key', gemini: 'gemini_key', groq: 'groq_key' };
-    state.pendingOnboarding[keyField[provider]] = key;
+    state.pendingOnboarding = { provider: provider, key: key };
   }
 
   function finishOnboarding(patch) {
@@ -484,14 +683,15 @@
 
   function saveSettings() {
     var p = els.providerSetting ? els.providerSetting.value : 'ollama';
+    var voice = els.voiceSetting ? els.voiceSetting.value : 'en-US-GuyNeural';
     var ok = els.openaiKeySetting ? els.openaiKeySetting.value.trim() : '';
     var ak = els.anthropicKeySetting ? els.anthropicKeySetting.value.trim() : '';
     var gk = els.geminiKeySetting ? els.geminiKeySetting.value.trim() : '';
     var rk = els.groqKeySetting ? els.groqKeySetting.value.trim() : '';
-    var voice = els.voiceSetting ? els.voiceSetting.value : 'en-US-GuyNeural';
 
     var patch = {
       provider: p,
+      model: els.modelSetting ? els.modelSetting.value : (state.settings.model || DEFAULT_MODELS[p]),
       language: 'auto',
       voice: voice,
       openai_key: ok,
@@ -501,46 +701,9 @@
       onboarding_completed: 'true'
     };
 
-    if (p === 'ollama') {
-      patch.model = 'llama3.1';
-      commitSettings(patch);
-      return;
-    }
+    if (!patch.model) patch.model = DEFAULT_MODELS[p];
 
-    var keyMap = { openai: ok, anthropic: ak, gemini: gk, groq: rk };
-    var apiKey = keyMap[p] || '';
-
-    if (!apiKey) {
-      patch.model = getDefaultModel(p);
-      commitSettings(patch);
-      return;
-    }
-
-    showModelStatus('checking', 'Checking API key and detecting models...');
-
-    var detectPayload = { provider: p, api_key: apiKey };
-    send('detect_models', detectPayload);
-
-    state.pendingSettings = patch;
-  }
-
-  function getDefaultModel(provider) {
-    var defaults = {
-      openai: 'gpt-4o-mini',
-      anthropic: 'claude-3-haiku-20240307',
-      gemini: 'gemini-1.5-flash',
-      groq: 'llama-3.1-8b-instant',
-      ollama: 'llama3.1'
-    };
-    return defaults[provider] || 'gpt-4o-mini';
-  }
-
-  function showModelStatus(type, msg) {
-    if (!els.modelStatusField) return;
-    els.modelStatusField.hidden = false;
-    if (!els.modelStatus) return;
-    els.modelStatus.className = 'model-status ' + type;
-    els.modelStatus.textContent = msg;
+    commitSettings(patch);
   }
 
   function commitSettings(patch) {
@@ -549,46 +712,58 @@
     saveSettingsToStorage();
     send('settings_update', patch);
     els.settingsPanel.hidden = true;
-    if (els.modelStatusField) els.modelStatusField.hidden = true;
-    showToast('Settings saved: ' + patch.provider.toUpperCase());
+    hideModelStatus();
+    showToast('Settings saved: ' + patch.provider.toUpperCase() + ' (' + patch.model + ')');
     applySettings();
   }
 
   function handleModelsDetected(payload) {
+    var provider = els.providerSetting.value;
+
     if (state.pendingOnboarding) {
-      if (payload.ok) {
-        var models = payload.models || [];
-        if (models.length > 0) {
-          state.pendingOnboarding.model = models[0];
-          els.onboardingError.textContent = 'Found ' + models.length + ' models. Activating...';
-          setTimeout(function() { finishOnboarding(state.pendingOnboarding); }, 600);
-        } else {
-          els.onboardingError.textContent = 'No models available for this key. Try a different API key.';
-        }
+      if (payload.ok && payload.models && payload.models.length > 0) {
+        var keyName = KEY_FIELDS[state.pendingOnboarding.provider];
+        var patch = {
+          provider: state.pendingOnboarding.provider,
+          model: payload.models[0]
+        };
+        patch[keyName] = state.pendingOnboarding.key;
+        state.pendingOnboarding = null;
+        finishOnboarding(patch);
       } else {
-        els.onboardingError.textContent = payload.error || 'Key validation failed.';
+        var msg = payload.ok
+          ? 'No models available for this key. Try a different key.'
+          : (payload.error || 'Key validation failed.');
+        els.onboardingError.textContent = msg;
+        state.pendingOnboarding = null;
       }
-      state.pendingOnboarding = null;
       return;
     }
 
     if (payload.ok) {
       var models = payload.models || [];
       if (models.length > 0) {
-        var firstModel = models[0];
-        state.settings.model = firstModel;
-        state.pendingSettings.model = firstModel;
+        populateModels(provider, models);
 
-        var msg = 'Found ' + models.length + ' models. Using: ' + firstModel;
-        showModelStatus('success', msg);
+        if (models.length === 1) {
+          showModelStatus('success', 'Found 1 model: ' + models[0]);
+        } else {
+          showModelStatus('success', 'Found ' + models.length + ' models. Select one below.');
+        }
 
-        setTimeout(function() { commitSettings(state.pendingSettings); }, 800);
+        var currentModel = els.modelSetting.value;
+        if (!currentModel || models.indexOf(currentModel) === -1) {
+          els.modelSetting.value = models[0];
+          state.settings.model = models[0];
+          saveSettingsToStorage();
+        }
       } else {
-        showModelStatus('error', 'No models found for this key. The key may not have access to any models.');
+        showModelStatus('error', 'No models found. This key has no model access.');
+        resetModelSelector(provider);
       }
     } else {
-      var error = payload.error || 'Unknown error';
-      showModelStatus('error', error);
+      showModelStatus('error', payload.error || 'Failed to connect to ' + provider.toUpperCase());
+      resetModelSelector(provider);
     }
   }
 
@@ -608,10 +783,12 @@
       state.recognition.onstart = function() {
         console.log('Speech started');
         if (els.micBtn) els.micBtn.classList.add('active');
+        if (state.voiceMode && els.voiceStatus) {
+          els.voiceStatus.textContent = 'Listening...';
+        }
       };
 
       state.recognition.onresult = function(e) {
-        console.log('Speech result received');
         var result = e.results[e.results.length - 1];
         if (result.isFinal) {
           var text = result[0].transcript.trim();
@@ -633,15 +810,60 @@
 
         if (state.voiceMode) {
           setTimeout(function() {
-            stopVoiceMode();
-          }, 1500);
+            try {
+              if (state.recognition && state.voiceMode) {
+                state.recognition.start();
+              }
+            } catch (e) {}
+          }, 500);
         }
       };
 
       state.recognition.onerror = function(e) {
         console.log('Speech error:', e.error);
-        if (e.error !== 'no-speech' && e.error !== 'aborted') {
-          showError('Voice error: ' + e.error);
+        if (els.micBtn) els.micBtn.classList.remove('active');
+
+        if (e.error === 'network') {
+          if (state.voiceMode && els.voiceStatus) {
+            els.voiceStatus.textContent = 'Connection issue...';
+          }
+          if (state.voiceMode) {
+            setTimeout(function() {
+              try {
+                if (state.recognition && state.voiceMode) {
+                  state.recognition.start();
+                }
+              } catch (e) {}
+            }, 2000);
+          }
+          return;
+        }
+
+        if (e.error === 'no-speech' || e.error === 'aborted') {
+          return;
+        }
+
+        if (e.error === 'not-allowed') {
+          showError('Microphone access denied. Please allow microphone access.');
+          stopVoiceMode();
+          return;
+        }
+
+        if (e.error === 'service-not-allowed') {
+          showError('Speech service blocked. Check browser settings.');
+          stopVoiceMode();
+          return;
+        }
+
+        if (state.voiceMode && els.voiceStatus) {
+          els.voiceStatus.textContent = 'Error, retrying...';
+          setTimeout(function() {
+            try {
+              if (state.recognition && state.voiceMode) {
+                state.recognition.start();
+              }
+            } catch (e) {}
+          }, 3000);
         }
       };
 

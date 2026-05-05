@@ -1,3 +1,4 @@
+import asyncio
 import json
 import urllib.error
 import urllib.request
@@ -26,9 +27,7 @@ class AIEngine:
         settings = self.db.settings()
         provider = settings.get("provider", "ollama")
         if provider != "ollama":
-            async for token in self._single_response_provider(
-                provider, messages, settings
-            ):
+            async for token in self._stream_provider(provider, messages, settings):
                 yield token
             return
 
@@ -63,6 +62,235 @@ class AIEngine:
                         break
         except (OSError, urllib.error.URLError) as error:
             yield f"Local AI error: {error}"
+
+    async def _stream_provider(
+        self, provider: str, messages: list[dict[str, str]], settings: dict[str, str]
+    ) -> AsyncGenerator[str, None]:
+        key_name = {
+            "openai": "openai_key",
+            "anthropic": "anthropic_key",
+            "gemini": "gemini_key",
+            "groq": "groq_key",
+        }.get(provider)
+
+        if not key_name:
+            yield f"Unknown provider: {provider}"
+            return
+
+        api_key = settings.get(key_name, "")
+        if not api_key:
+            yield f"No API key for {provider.upper()}. Add key in Settings."
+            return
+
+        model = settings.get("model", "").strip() or self._get_default_model(provider)
+
+        try:
+            if provider == "openai":
+                async for token in self._stream_openai(
+                    "https://api.openai.com/v1/chat/completions",
+                    api_key,
+                    model,
+                    messages,
+                ):
+                    yield token
+            elif provider == "groq":
+                async for token in self._stream_openai(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    api_key,
+                    model,
+                    messages,
+                ):
+                    yield token
+            elif provider == "anthropic":
+                async for token in self._stream_anthropic(api_key, model, messages):
+                    yield token
+            elif provider == "gemini":
+                async for token in self._stream_gemini(api_key, model, messages):
+                    yield token
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                yield f"Invalid API key. Check your {provider.upper()} key in Settings."
+            elif e.code == 429:
+                yield "Rate limit. Wait and try again."
+            else:
+                yield f"HTTP Error {e.code}: {e.reason}"
+        except Exception as e:
+            yield f"Error: {str(e)}"
+
+    def _get_default_model(self, provider: str) -> str:
+        defaults = {
+            "openai": "gpt-4o-mini",
+            "anthropic": "claude-3-haiku-20240307",
+            "gemini": "gemini-1.5-flash",
+            "groq": "llama-3.1-8b-instant",
+        }
+        return defaults.get(provider, "gpt-4o-mini")
+
+    def _stream_openai(
+        self, url: str, api_key: str, model: str, messages: list
+    ) -> AsyncGenerator[str, None]:
+        loop = asyncio.get_event_loop()
+        return self._stream_openai_sync(url, api_key, model, messages, loop)
+
+    async def _stream_openai_sync(
+        self, url: str, api_key: str, model: str, messages: list, loop
+    ) -> AsyncGenerator[str, None]:
+        payload = json.dumps(
+            {
+                "model": model,
+                "messages": messages,
+                "stream": True,
+            }
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=120) as response:
+            for line in response:
+                if not line:
+                    continue
+                decoded = line.decode("utf-8").strip()
+                if not decoded.startswith("data: "):
+                    continue
+                data_str = decoded[6:]
+                if data_str == "[DONE]":
+                    break
+                try:
+                    data = json.loads(data_str)
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    token = delta.get("content", "")
+                    if token:
+                        yield token
+                except json.JSONDecodeError:
+                    continue
+
+    def _stream_anthropic(
+        self, api_key: str, model: str, messages: list
+    ) -> AsyncGenerator[str, None]:
+        loop = asyncio.get_event_loop()
+        return self._stream_anthropic_sync(api_key, model, messages, loop)
+
+    async def _stream_anthropic_sync(
+        self, api_key: str, model: str, messages: list, loop
+    ) -> AsyncGenerator[str, None]:
+        system_parts = [m["content"] for m in messages if m["role"] == "system"]
+        chat_msgs = [
+            {
+                "role": "assistant" if m["role"] == "assistant" else "user",
+                "content": m["content"],
+            }
+            for m in messages
+            if m["role"] != "system"
+        ]
+        payload = json.dumps(
+            {
+                "model": model,
+                "max_tokens": 4096,
+                "system": "\n".join(system_parts),
+                "messages": chat_msgs,
+                "stream": True,
+            }
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=120) as response:
+            for line in response:
+                if not line:
+                    continue
+                decoded = line.decode("utf-8").strip()
+                if not decoded.startswith("data: "):
+                    continue
+                data_str = decoded[6:]
+                try:
+                    data = json.loads(data_str)
+                    if data.get("type") == "content_block_delta":
+                        delta = data.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            yield delta.get("text", "")
+                except json.JSONDecodeError:
+                    continue
+
+    def _stream_gemini(
+        self, api_key: str, model: str, messages: list
+    ) -> AsyncGenerator[str, None]:
+        loop = asyncio.get_event_loop()
+        return self._stream_gemini_sync(api_key, model, messages, loop)
+
+    async def _stream_gemini_sync(
+        self, api_key: str, model: str, messages: list, loop
+    ) -> AsyncGenerator[str, None]:
+        contents = []
+        system_text = ""
+        last_role = None
+
+        for m in messages:
+            if m["role"] == "system":
+                system_text += m["content"] + "\n"
+                continue
+            role = "model" if m["role"] == "assistant" else "user"
+            if role == last_role:
+                contents[-1]["parts"][0]["text"] += "\n" + m["content"]
+                continue
+            contents.append({"role": role, "parts": [{"text": m["content"]}]})
+            last_role = role
+
+        if not contents:
+            contents.append({"role": "user", "parts": [{"text": "Hello"}]})
+
+        payload = {"contents": contents}
+        if system_text.strip():
+            payload["systemInstruction"] = {"parts": [{"text": system_text.strip()}]}
+
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:streamGenerateContent?alt=sse&key={api_key}"
+        )
+
+        body = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                for line in response:
+                    if not line:
+                        continue
+                    decoded = line.decode("utf-8").strip()
+                    if not decoded.startswith("data: "):
+                        continue
+                    data_str = decoded[6:]
+                    try:
+                        data = json.loads(data_str)
+                        candidates = data.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            for part in parts:
+                                token = part.get("text", "")
+                                if token:
+                                    yield token
+                    except json.JSONDecodeError:
+                        continue
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8") if e.fp else ""
+            raise Exception(f"Gemini API {e.code}: {body}")
 
     def detect_models(self, provider: str, api_key: str) -> dict:
         try:
@@ -168,157 +396,3 @@ class AIEngine:
             data = json.loads(response.read().decode("utf-8"))
         all_models = [m["id"] for m in data.get("data", [])]
         return {"ok": True, "models": all_models[:20], "error": ""}
-
-    async def _single_response_provider(
-        self, provider: str, messages: list[dict[str, str]], settings: dict[str, str]
-    ) -> AsyncGenerator[str, None]:
-        key_name = {
-            "openai": "openai_key",
-            "anthropic": "anthropic_key",
-            "gemini": "gemini_key",
-            "groq": "groq_key",
-        }.get(provider)
-
-        if not key_name:
-            yield f"Unknown provider: {provider}"
-            return
-
-        api_key = settings.get(key_name, "")
-        if not api_key:
-            yield f"No API key for {provider.upper()}. Add key in Settings."
-            return
-
-        model = settings.get("model", "").strip() or self._get_default_model(provider)
-
-        try:
-            if provider == "openai":
-                yield self._openai_api(
-                    "https://api.openai.com/v1/chat/completions",
-                    api_key,
-                    model,
-                    messages,
-                )
-            elif provider == "groq":
-                yield self._openai_api(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    api_key,
-                    model,
-                    messages,
-                )
-            elif provider == "anthropic":
-                yield self._anthropic_api(api_key, model, messages)
-            elif provider == "gemini":
-                yield self._gemini_api(api_key, model, messages)
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                yield f"Invalid API key. Check your {provider.upper()} key in Settings."
-            elif e.code == 429:
-                yield "Rate limit. Wait and try again."
-            else:
-                yield f"HTTP Error {e.code}: {e.reason}"
-        except Exception as e:
-            yield f"Error: {str(e)}"
-
-    def _get_default_model(self, provider: str) -> str:
-        defaults = {
-            "openai": "gpt-4o-mini",
-            "anthropic": "claude-3-haiku-20240307",
-            "gemini": "gemini-1.5-flash",
-            "groq": "llama-3.1-8b-instant",
-        }
-        return defaults.get(provider, "gpt-4o-mini")
-
-    def _request_json(self, url: str, payload: dict, headers: dict) -> dict:
-        request = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", **headers},
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return json.loads(response.read().decode("utf-8"))
-
-    def _openai_api(self, url: str, api_key: str, model: str, messages: list) -> str:
-        data = self._request_json(
-            url,
-            {"model": model, "messages": messages},
-            {"Authorization": f"Bearer {api_key}"},
-        )
-        return data["choices"][0]["message"]["content"]
-
-    def _anthropic_api(self, api_key: str, model: str, messages: list) -> str:
-        system_parts = [m["content"] for m in messages if m["role"] == "system"]
-        chat_msgs = [
-            {
-                "role": "assistant" if m["role"] == "assistant" else "user",
-                "content": m["content"],
-            }
-            for m in messages
-            if m["role"] != "system"
-        ]
-        data = self._request_json(
-            "https://api.anthropic.com/v1/messages",
-            {
-                "model": model,
-                "max_tokens": 2048,
-                "system": "\n".join(system_parts),
-                "messages": chat_msgs,
-            },
-            {"x-api-key": api_key, "anthropic-version": "2023-06-01"},
-        )
-        return "".join(p.get("text", "") for p in data.get("content", []))
-
-    def _gemini_api(self, api_key: str, model: str, messages: list) -> str:
-        contents = []
-        system_text = ""
-        last_role = None
-
-        for m in messages:
-            if m["role"] == "system":
-                system_text += m["content"] + "\n"
-                continue
-
-            role = "model" if m["role"] == "assistant" else "user"
-
-            if role == last_role:
-                contents[-1]["parts"][0]["text"] += "\n" + m["content"]
-                continue
-
-            contents.append({"role": role, "parts": [{"text": m["content"]}]})
-            last_role = role
-
-        if not contents:
-            contents.append({"role": "user", "parts": [{"text": "Hello"}]})
-
-        payload = {"contents": contents}
-        if system_text.strip():
-            payload["systemInstruction"] = {"parts": [{"text": system_text.strip()}]}
-
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
-
-        request = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
-        try:
-            with urllib.request.urlopen(request, timeout=120) as response:
-                data = json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8") if e.fp else ""
-            raise Exception(f"Gemini API {e.code}: {body}")
-
-        candidates = data.get("candidates", [])
-        if not candidates:
-            raise Exception("Gemini returned no candidates")
-
-        parts = candidates[0].get("content", {}).get("parts", [])
-        if not parts:
-            raise Exception("Gemini returned empty response")
-
-        return parts[0].get("text", "")
